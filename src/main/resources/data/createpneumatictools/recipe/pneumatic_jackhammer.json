@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "D": {
+      "item": "createpneumatictools:hand_drill"
+    },
+    "O": {
+      "item": "create:powdered_obsidian"
+    }
+  },
+  "pattern": [
+    " O ",
+    "ODO",
+    " O "
+  ],
+  "result": {
+    "count": 1,
+    "id": "createpneumatictools:pneumatic_jackhammer"
+  }
+}

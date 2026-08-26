@@ -1,0 +1,280 @@
+{
+  "textures": {
+    "gunmetal": "createpneumatictools:item/part/gunmetal",
+    "obsidian": "createpneumatictools:item/part/obsidian"
+  },
+  "elements": [
+    {
+      "from": [
+        6.5,
+        4.0,
+        6.5
+      ],
+      "to": [
+        9.5,
+        8.0,
+        9.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            3.0,
+            4.0
+          ],
+          "texture": "#gunmetal"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            3.0,
+            4.0
+          ],
+          "texture": "#gunmetal"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            3.0,
+            4.0
+          ],
+          "texture": "#gunmetal"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            3.0,
+            4.0
+          ],
+          "texture": "#gunmetal"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            3.0,
+            3.0
+          ],
+          "texture": "#gunmetal"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            3.0,
+            3.0
+          ],
+          "texture": "#gunmetal"
+        }
+      }
+    },
+    {
+      "from": [
+        6.75,
+        8.0,
+        6.25
+      ],
+      "to": [
+        9.25,
+        10.0,
+        9.75
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            2.5,
+            2.0
+          ],
+          "texture": "#obsidian"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            2.5,
+            2.0
+          ],
+          "texture": "#obsidian"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            3.5,
+            2.0
+          ],
+          "texture": "#obsidian"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            3.5,
+            2.0
+          ],
+          "texture": "#obsidian"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            2.5,
+            3.5
+          ],
+          "texture": "#obsidian"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            2.5,
+            3.5
+          ],
+          "texture": "#obsidian"
+        }
+      }
+    },
+    {
+      "from": [
+        7.25,
+        10.0,
+        7.0
+      ],
+      "to": [
+        8.75,
+        11.0,
+        9.0
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            1.5,
+            1.0
+          ],
+          "texture": "#obsidian"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            1.5,
+            1.0
+          ],
+          "texture": "#obsidian"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            2.0,
+            1.0
+          ],
+          "texture": "#obsidian"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            2.0,
+            1.0
+          ],
+          "texture": "#obsidian"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            1.5,
+            2.0
+          ],
+          "texture": "#obsidian"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            1.5,
+            2.0
+          ],
+          "texture": "#obsidian"
+        }
+      }
+    },
+    {
+      "from": [
+        7.5,
+        11.0,
+        7.5
+      ],
+      "to": [
+        8.5,
+        11.5,
+        8.5
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            1.0,
+            0.5
+          ],
+          "texture": "#obsidian"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            1.0,
+            0.5
+          ],
+          "texture": "#obsidian"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            1.0,
+            0.5
+          ],
+          "texture": "#obsidian"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            1.0,
+            0.5
+          ],
+          "texture": "#obsidian"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            1.0,
+            1.0
+          ],
+          "texture": "#obsidian"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            1.0,
+            1.0
+          ],
+          "texture": "#obsidian"
+        }
+      }
+    }
+  ]
+}

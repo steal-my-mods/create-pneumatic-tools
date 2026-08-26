@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "H": {
+      "item": "create:hand_crank"
+    },
+    "S": {
+      "item": "create:brass_sheet"
+    },
+    "A": {
+      "item": "create:andesite_alloy"
+    }
+  },
+  "pattern": [
+    "H",
+    "S",
+    "A"
+  ],
+  "result": {
+    "count": 1,
+    "id": "createpneumatictools:pneumatic_wrench"
+  }
+}
