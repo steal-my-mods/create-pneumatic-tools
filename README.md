@@ -29,7 +29,7 @@ backtank is something you see in your hand before you swing at anything.
 |---|---|---|
 | **Hand Drill** | A Mechanical Drill you can carry. Quick on anything a pickaxe or a shovel handles. | 900 blocks |
 | **Pneumatic Jackhammer** | Shatters hard blocks in a fixed quarter-second — Obsidian and Deepslate take the same moment. Netherite tier. Slow and **free** on anything soft. | 90 hard blocks |
-| **3x3 Tunnelling Drill** | Clears a 3x3 slice of the wall you are looking at. Charged once per burst, however many of the nine blocks were there. | 100 bursts |
+| **3x3 Tunnelling Drill** | Clears a 3x3 slice lying flat against the face you drilled — a wall if you drilled a wall, a trench if you drilled the floor. Charged once per burst, however many of the nine blocks were there. | 100 bursts |
 | **Pneumatic Saw** | Fells a whole tree from one log, canopy and all. Bamboo, cane, cactus and chorus too. | 60 trees |
 
 ### Surface treatment
@@ -44,7 +44,7 @@ backtank is something you see in your hand before you swing at anything.
 | Tool | What it does | Per tank |
 |---|---|---|
 | **Pneumatic Vacuum Wand** | Hold Right-Click and loose items and experience come to you from eight blocks out. A pulse with nothing in range is free. | 900 pulses |
-| **Pneumatic Wrench** | Portable torque. Hold it against a shaft and it drives the network at 32 RPM with 256 SU behind it, for as long as you hold the button. | 450 pulses |
+| **Pneumatic Wrench** | Portable torque. Hold it against a shaft and it drives the network at 64 RPM with 1024 SU behind it — twice a Hand Crank's speed and four times its torque — for as long as you hold the button. | 450 pulses |
 
 ---
 
@@ -138,16 +138,20 @@ See [CLAUDE.md](CLAUDE.md) for how the repo is put together and the things that 
 
 ## What is not here
 
-Three tools from the original list are designed but not built, each with a write-up in `docs/`
-explaining why and what it would take:
+Three tools from the original list are not built, each with a write-up in `docs/` explaining why and
+what it would take:
 
-- **Pneumatic Track Trolley** (`docs/rail-rider.md`) — a vehicle, not a tool: a new entity, and two
-  rail systems that do not agree about what a rail is.
-- **Pneumatic Stilts** (`docs/pneumatic-stilts.md`) — the best idea in the list, and there is nothing
-  in Minecraft for the player to stand on that is not a block or an entity.
+- **Pneumatic Track Trolley** (`docs/rail-rider.md`) — buildable on Create's own `TravellingPoint`,
+  which follows curves and takes junctions from a look vector. What is unsettled is moving a player
+  smoothly, and what to do about Trains already using the track.
+- **Pneumatic Stilts** (`docs/pneumatic-stilts.md`) — **dropped**, not deferred. The engineering
+  came good — a leased platform under your feet, the wrench's self-deleting trick again — but any
+  version of it puts a hidden, temporary, walkable floor in a shared world, and everything standing
+  on yours falls when you walk away.
 - **The wrench as a portable generator** (`docs/wrench-as-a-generator.md`) — Create's rotation is a
-  graph of block entities, so a source of it has to be somewhere. The wrench that shipped drives
-  Hand Cranks instead.
+  graph of block entities, so a source of it has to be somewhere. The wrench that shipped puts a
+  leased, invisible generator against the face you aim at, and keeps renewing it while you hold the
+  button.
 
 ## Licence
 

@@ -110,6 +110,20 @@ config can be read against Create's without converting anything, and
 - **Dirt has a pressing recipe.** `create:pressing/path` turns dirt, coarse dirt, rooted dirt,
   mycelium and podzol into a dirt path. A test that wants something the Crimper will *not* take needs
   something else; a stick works. This cost a test.
+- **The tunneller re-casts the player's aim to find the face it drilled.** `mineBlock` is handed a
+  position and no face, and the nearest axis of the *look* vector is not the same thing: cutting a
+  trench you break the top of a block while looking mostly forwards, and a look-axis slice stands up
+  on end and digs a hole instead. `TunnelDrillItem.plane` clips from the eyes with
+  `getPlayerPOVHitResult` and only trusts the answer when it lands on the block being broken —
+  otherwise it falls back to the look axis, which is what the tool used everywhere before.
+  `theTunnellingDrillFollowsTheFaceYouDrilled` is built on exactly the geometry where the two
+  disagree, and `theTunnellingDrillFollowsWhereYouLook` still covers the fallback, because a test
+  calling `mineBlock` directly never satisfies the cast.
+- **A changed config *default* does not reach a world that already has the config file.** Raising the
+  wrench's RPM failed its own new test at first, reporting the old 256 SU, because
+  `run-gametest/config/createpneumatictools-server.toml` had been written by an earlier run. Delete
+  the file — in `run/` and `run-gametest/` both — after changing a default, or the test suite is
+  reading last week's numbers.
 - **Instantly-breaking blocks are free, on purpose.** `PneumaticDiggerItem.mineBlock` returns early
   when `getDestroySpeed == 0`. Without it a walk through a meadow or a torch-lit cave drains a tank.
 - **The Vacuum Wand leaves items that still have a pickup delay.** Pulling one back would undo the
@@ -315,6 +329,15 @@ Create's rotation is a graph of block entities: a member is found by its neighbo
 what is at a position, so an item in a hand can never join a kinetic network. While you hold the
 button, the wrench keeps a real generator in the empty space against the face you aimed at.
 
+- **It deliberately out-muscles a Hand Crank rather than matching it.** 64 RPM and 16 SU per RPM
+  against the crank's 32 and 8 — twice the speed and four times the torque, which is the difference
+  between only just turning one Mechanical Press at 32 RPM and running one at 64 with the belts that
+  feed it. Both numbers were checked against Create's own registration (`AllBlocks.HAND_CRANK`:
+  `CStress.setCapacity(8.0)`, `setGeneratorSpeed(32)`), and
+  `theWrenchOutMusclesAHandCrank` reads the figure back off the live network rather than out of the
+  config, so it also fails if the source joins the network without registering its capacity. What
+  the wrench does not have is a crank's permanence: it lasts as long as you stand there holding the
+  button, and about three and a half minutes of backtank.
 - **The lease is the whole safety argument.** A wrench that *removed* its source on release would
   have to also remove it on: releasing the button, switching hotbar slot, walking out of range,
   dying, disconnecting, changing dimension, the chunk unloading mid-hold, and the client crashing.
@@ -392,10 +415,12 @@ Releases go out through `publishMods` (`me.modmuss50.mod-publish-plugin`), drive
 against building them. Read the relevant one before starting such a feature, and update it if the
 thinking changes — the point is that the analysis is not redone from scratch.
 
-- `docs/rail-rider.md` — the Track Trolley: a vehicle rather than a tool, and two rail systems that
-  do not agree about what a rail is
-- `docs/pneumatic-stilts.md` — the best idea in the original list, and why there is nothing for the
-  player to stand on that is not a block or an entity
+- `docs/rail-rider.md` — the Track Trolley. Re-examined against Create's actual API: `ITrackBlock`
+  and `TravellingPoint` do give a handheld tool a track to follow, so the open questions are moving a
+  player smoothly and sharing the graph with Trains, not the ones the first draft named
+- `docs/pneumatic-stilts.md` — the best idea in the original list, and **dropped on purpose** after
+  the technical blocker came off. The lease made the platform buildable; what killed it is that the
+  platform is a real floor other players and mobs stand on, and it vanishes when its owner leaves
 - `docs/wrench-as-a-generator.md` — why a handheld source of rotation cannot exist in Create's model,
   and what the Pneumatic Wrench does instead
 

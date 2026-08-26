@@ -15,7 +15,7 @@
   "item.createpneumatictools.tunnel_drill": "3x3 Tunnelling Drill",
   "item.createpneumatictools.tunnel_drill.tooltip.summary": "Eight _Mechanical Drills_ around a wrench. Clears a _3x3 slice_ of the wall in front of you in one burst.",
   "item.createpneumatictools.tunnel_drill.tooltip.condition1": "When you break a block",
-  "item.createpneumatictools.tunnel_drill.tooltip.behaviour1": "The eight around it go too, in the plane you are _looking along_. Charged _once_ for the burst.",
+  "item.createpneumatictools.tunnel_drill.tooltip.behaviour1": "The eight around it go too, flat against the _face you drilled_. Charged _once_ for the burst.",
   "item.createpneumatictools.tunnel_drill.tooltip.condition2": "Compared with the Hand Drill",
   "item.createpneumatictools.tunnel_drill.tooltip.behaviour2": "Slower per block and dearer per block, and it moves nine times as much rock.",
   "item.createpneumatictools.pneumatic_saw": "Pneumatic Saw",
@@ -43,7 +43,7 @@
   "item.createpneumatictools.pneumatic_wrench": "Pneumatic Wrench",
   "item.createpneumatictools.pneumatic_wrench.tooltip.summary": "Portable torque. Hold it against a shaft and it drives the network for as long as you hold the button.",
   "item.createpneumatictools.pneumatic_wrench.tooltip.condition1": "Hold Right-Click on a shaft or cogwheel",
-  "item.createpneumatictools.pneumatic_wrench.tooltip.behaviour1": "Turns it at _32 RPM_ with _256 Stress Units_ behind it, the same as a _Hand Crank_ — and no hunger.",
+  "item.createpneumatictools.pneumatic_wrench.tooltip.behaviour1": "Turns it at _64 RPM_ with _1024 Stress Units_ behind it — twice a _Hand Crank_'s speed, four times its torque, and no hunger.",
   "item.createpneumatictools.pneumatic_wrench.tooltip.condition2": "When you let go, walk away, or run dry",
   "item.createpneumatictools.pneumatic_wrench.tooltip.behaviour2": "It stops. Nothing is left behind."
 }

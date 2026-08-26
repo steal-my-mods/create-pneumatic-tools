@@ -12,11 +12,14 @@ import com.createpneumatictools.source.PneumaticSourceBlockEntity;
 import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllDataComponents;
 import com.simibubi.create.AllItems;
+import com.simibubi.create.api.stress.BlockStressValues;
 import com.simibubi.create.content.equipment.armor.BacktankUtil;
 import com.simibubi.create.content.kinetics.base.DirectionalKineticBlock;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
+import com.simibubi.create.content.kinetics.crank.HandCrankBlock;
 import com.simibubi.create.content.kinetics.simpleRelays.AbstractSimpleShaftBlock;
 
+import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -235,6 +238,34 @@ public class PneumaticToolGameTests {
 		helper.assertBlockNotPresent(Blocks.STONE, centre.south());
 		// The vertical neighbours are in the plane the player is looking *along*, so they stay.
 		helper.assertBlockPresent(Blocks.STONE, centre.above());
+		helper.assertBlockPresent(Blocks.STONE, centre.below());
+		helper.succeed();
+	}
+
+	@GameTest(template = "workshop")
+	public static void theTunnellingDrillFollowsTheFaceYouDrilled(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.TUNNEL_DRILL.get());
+		// Two courses of floor three blocks ahead. Two, because the discriminating question is what
+		// the burst did to the layer underneath.
+		BlockPos centre = SITE.below()
+			.north(3);
+		for (int x = -2; x <= 2; x++)
+			for (int z = -2; z <= 2; z++) {
+				helper.setBlock(centre.offset(x, 0, z), Blocks.STONE);
+				helper.setBlock(centre.offset(x, -1, z), Blocks.STONE);
+			}
+		// Down the slope onto the top face. At this range the look vector is more horizontal than
+		// vertical, so the nearest axis of the *look* is Z while the face is UP -- which is the whole
+		// case this test exists for, and the everyday one: cutting a trench along the ground.
+		aimAt(helper, player, centre, Direction.UP);
+
+		mine(helper, player, centre);
+
+		// North and south only come out for a slice lying flat in the floor ...
+		helper.assertBlockNotPresent(Blocks.STONE, centre.north());
+		helper.assertBlockNotPresent(Blocks.STONE, centre.south());
+		// ... and the course underneath only comes out for one standing on end, which is what taking
+		// the nearest look axis would have built here.
 		helper.assertBlockPresent(Blocks.STONE, centre.below());
 		helper.succeed();
 	}
@@ -495,6 +526,34 @@ public class PneumaticToolGameTests {
 	}
 
 	@GameTest(template = "workshop", timeoutTicks = 200)
+	public static void theWrenchOutMusclesAHandCrank(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.WRENCH.get());
+		BlockPos shaft = SITE.above();
+		helper.setBlock(shaft, AllBlocks.SHAFT.getDefaultState()
+			.setValue(AbstractSimpleShaftBlock.AXIS, Direction.Axis.Y));
+		useOn(helper, player, shaft);
+		holdOpen(helper, shaft.above(), SETTLE_TICKS);
+
+		helper.runAfterDelay(SETTLE_TICKS, () -> {
+			if (!(helper.getBlockEntity(shaft) instanceof KineticBlockEntity kinetic))
+				throw new GameTestAssertException("no shaft to read");
+			// Read off the network rather than out of the config: this is the number the Stressometer
+			// shows, and it is nonzero only if the source actually joined the network and registered
+			// its capacity there.
+			float supplied = kinetic.getOrCreateNetwork()
+				.calculateCapacity();
+			HandCrankBlock crank = AllBlocks.HAND_CRANK.get();
+			double byHand = BlockStressValues.getCapacity(crank) * crank.getRotationSpeed();
+			if (supplied <= byHand)
+				throw new GameTestAssertException("the wrench supplies " + supplied
+					+ " Stress Units and a Hand Crank supplies " + byHand
+					+ " -- an air tool that is no stronger than a handle you turn by hand is not worth "
+					+ "the backtank");
+			helper.succeed();
+		});
+	}
+
+	@GameTest(template = "workshop", timeoutTicks = 200)
 	public static void anUnrenewedSourceRemovesItself(GameTestHelper helper) {
 		Player player = worker(helper, CPTItems.WRENCH.get());
 		BlockPos shaft = SITE.above();
@@ -676,6 +735,17 @@ public class PneumaticToolGameTests {
 		for (int x = -radius; x <= radius; x++)
 			for (int y = -radius; y <= radius; y++)
 				helper.setBlock(centre.offset(x, y, 0), Blocks.STONE);
+	}
+
+	/**
+	 * Points the player at the middle of one face of a block, which is what the tunnelling drill's own
+	 * cast from the player's eyes will find.
+	 */
+	private static void aimAt(GameTestHelper helper, Player player, BlockPos pos, Direction face) {
+		Vec3 target = Vec3.atCenterOf(helper.absolutePos(pos))
+			.add(Vec3.atLowerCornerOf(face.getNormal())
+				.scale(0.5));
+		player.lookAt(EntityAnchorArgument.Anchor.EYES, target);
 	}
 
 	/** Points the player squarely along one axis, which is what the tunnelling drill reads. */

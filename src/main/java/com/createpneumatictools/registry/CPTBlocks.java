@@ -38,9 +38,13 @@ public class CPTBlocks {
 	/**
 	 * What Create quotes for the source, and what it actually supplies.
 	 *
-	 * <p>Capacity only — a generator has no impact. The figure matches Create's own Hand Crank, which
-	 * is the block the wrench replaces, so a network that a crank could drive is a network this can
-	 * drive and no more.
+	 * <p>Capacity only — a generator has no impact. The figure deliberately beats Create's own Hand
+	 * Crank rather than matching it: a crank is a handle you turn with your arms, and a pneumatic
+	 * wrench is the tool that exists because arms are not enough. At the defaults it is twice a
+	 * crank's speed and four times its output, which is the difference between only just turning one
+	 * Mechanical Press and running one properly. What it does not have is a crank's permanence — it
+	 * lasts as long as you stand there holding the button, and about three and a half minutes of
+	 * backtank.
 	 */
 	public static void registerStressValues(FMLCommonSetupEvent event) {
 		event.enqueueWork(() -> {

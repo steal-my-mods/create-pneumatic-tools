@@ -120,14 +120,16 @@ public class CPTConfig {
 			.comment("Ticks between charges while the wrench is driving. Every one costs one use.")
 			.defineInRange("wrenchInterval", 10, 1, 200);
 		wrenchRpm = builder
-			.comment("Speed the wrench turns a network at. Create's Hand Crank, which this replaces,",
-				"is 32.")
-			.defineInRange("wrenchRpm", 32.0, 1.0, 256.0);
+			.comment("Speed the wrench turns a network at. Create's Hand Crank, the hand tool this is",
+				"the powered answer to, is 32 -- so the default here is twice a crank.")
+			.defineInRange("wrenchRpm", 64.0, 1.0, 256.0);
 		wrenchCapacity = builder
 			.comment("Stress capacity the wrench supplies, per RPM. Create's Hand Crank is 8, so at",
-				"the default speed the wrench is worth 256 Stress Units -- enough to start a mixer,",
-				"not enough to run a factory.")
-			.defineInRange("wrenchCapacity", 8.0, 0.0, 10000.0);
+				"each tool's own default speed the wrench is worth 1024 Stress Units against the",
+				"crank's 256. That is the difference between only just turning one Mechanical Press",
+				"at 32 RPM and running one at 64 with the belts that feed it. Torque is what a real",
+				"impact wrench has over a hand crank, so torque is where the air goes.")
+			.defineInRange("wrenchCapacity", 16.0, 0.0, 10000.0);
 		wrenchRange = builder
 			.comment("How far you can get from the shaft before the wrench lets go of it, in blocks.")
 			.defineInRange("wrenchRange", 8.0, 1.0, 32.0);
