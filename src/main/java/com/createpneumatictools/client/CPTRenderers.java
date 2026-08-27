@@ -40,9 +40,14 @@ public class CPTRenderers {
 		// The jackhammer is the one tool that does not turn. A breaker that spins is a drill, and the
 		// pair of them are otherwise the same silhouette in the same colours.
 		add(map, CPTItems.JACKHAMMER.get(), Motion.HAMMER, 2.2F, CPTPartials.JACKHAMMER_CHISEL);
+		// The Borer's plate is the widest moving thing in the mod, and a wide wheel aliases at a lower
+		// rate than a narrow one: what matters is how fast the rim travels, not how fast the hub turns.
+		add(map, CPTItems.BORER.get(), Motion.SPIN_AXIAL, 0.7F, CPTPartials.BORER_HEAD);
 		add(map, CPTItems.SAW.get(), Motion.SPIN_FACE, 1.6F, CPTPartials.SAW_BLADE);
 		add(map, CPTItems.GRINDER.get(), Motion.SPIN_FACE, 1.8F, CPTPartials.GRINDER_WHEEL);
-		add(map, CPTItems.BUFFER.get(), Motion.SPIN_FACE, 1.2F, CPTPartials.BUFFER_PAD);
+		// SPIN_AXIAL, not SPIN_FACE: the pad faces the work rather than standing up beside the barrel,
+		// so it turns about the barrel. Slow, because a polishing pad is not an abrasive wheel.
+		add(map, CPTItems.BUFFER.get(), Motion.SPIN_AXIAL, 1.0F, CPTPartials.BUFFER_PAD);
 		add(map, CPTItems.VACUUM_WAND.get(), Motion.SPIN_AXIAL, 1.5F, CPTPartials.VACUUM_IMPELLER);
 		add(map, CPTItems.WRENCH.get(), Motion.SPIN_AXIAL, 0.8F, CPTPartials.WRENCH_SOCKET);
 		return map;

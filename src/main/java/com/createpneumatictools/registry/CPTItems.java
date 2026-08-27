@@ -5,6 +5,7 @@ import java.util.List;
 import com.createpneumatictools.CreatePneumaticTools;
 import com.createpneumatictools.item.HandDrillItem;
 import com.createpneumatictools.item.JackhammerItem;
+import com.createpneumatictools.item.PneumaticBorerItem;
 import com.createpneumatictools.item.PneumaticBufferItem;
 import com.createpneumatictools.item.PneumaticGrinderItem;
 import com.createpneumatictools.item.PneumaticSawItem;
@@ -43,6 +44,9 @@ public class CPTItems {
 	public static final DeferredItem<TunnelDrillItem> TUNNEL_DRILL =
 		ITEMS.registerItem("tunnel_drill", TunnelDrillItem::new);
 
+	public static final DeferredItem<PneumaticBorerItem> BORER =
+		ITEMS.registerItem("pneumatic_borer", PneumaticBorerItem::new);
+
 	public static final DeferredItem<PneumaticSawItem> SAW =
 		ITEMS.registerItem("pneumatic_saw", PneumaticSawItem::new);
 
@@ -60,8 +64,8 @@ public class CPTItems {
 
 	/** Tab order, and the order everything else in the mod lists them in. */
 	public static List<DeferredItem<? extends Item>> all() {
-		return List.of(HAND_DRILL, JACKHAMMER, TUNNEL_DRILL, SAW, GRINDER, BUFFER, VACUUM_WAND,
-			WRENCH);
+		return List.of(HAND_DRILL, JACKHAMMER, TUNNEL_DRILL, BORER, SAW, GRINDER, BUFFER,
+			VACUUM_WAND, WRENCH);
 	}
 
 	public static final DeferredHolder<CreativeModeTab, CreativeModeTab> TAB = TABS.register("main",

@@ -1,0 +1,31 @@
+{
+  "type": "create:mechanical_crafting",
+  "accept_mirrored": false,
+  "category": "equipment",
+  "key": {
+    "D": {
+      "item": "create:mechanical_drill"
+    },
+    "P": {
+      "item": "create:precision_mechanism"
+    },
+    "S": {
+      "item": "create:brass_sheet"
+    },
+    "T": {
+      "item": "createpneumatictools:tunnel_drill"
+    }
+  },
+  "pattern": [
+    "DDDDD",
+    "DPSPD",
+    "DSTSD",
+    "DPSPD",
+    "DDDDD"
+  ],
+  "result": {
+    "count": 1,
+    "id": "createpneumatictools:pneumatic_borer"
+  },
+  "show_notification": false
+}

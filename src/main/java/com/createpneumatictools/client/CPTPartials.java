@@ -44,16 +44,41 @@ public class CPTPartials {
 	};
 
 	/**
-	 * The three wheels hang out to the side of the barrel, the way a circular saw's blade and an angle
-	 * grinder's disc both do — and for a duller reason than realism. A wheel this size mounted on the
+	 * The saw's blade hangs below the barrel as well as out to the side, which is where a circular
+	 * saw's blade is — and is what leaves room above the axis for the hood over it. A wheel on the
 	 * centre line has a radius that reaches back through the body, the collar and the trigger, so half
 	 * a turn of it is spent inside the tool it is bolted to.
+	 *
+	 * <p><b>{@code across} is negative on both wheeled tools, and that is what makes them watchable.</b>
+	 * The first-person transform lays the tool pointing away and to the left, so model {@code +X} comes
+	 * out of it toward the right of the screen <em>and away from the camera</em> — a wheel there sits
+	 * behind the barrel, at the edge of the screen, where the one part of the tool that moves cannot be
+	 * seen at all. Negative puts it on the near side and toward the middle. Flipping the sign back
+	 * costs nothing that any check would notice and hides the animation completely.
 	 */
-	public static final Mount SAW_BLADE = axial("pneumatic_saw", "blade", 3.0F, 4.0F, BARREL_UP);
+	public static final Mount SAW_BLADE =
+		axial("pneumatic_saw", "blade", 2.0F, -4.0F, BARREL_UP - 2.0F);
+
+	/** An angle grinder's disc: small, thick, and right at the nose on a stub arbor. Left flank, as above. */
 	public static final Mount GRINDER_WHEEL =
-		axial("pneumatic_grinder", "wheel", 3.0F, 4.0F, BARREL_UP);
+		axial("pneumatic_grinder", "wheel", 4.0F, -4.0F, BARREL_UP);
+
+	/**
+	 * The one wheel that is not out to the side. A polisher's pad faces the work, so it sits on the
+	 * barrel's own axis past the end of the chuck and turns about it — which is also the only place it
+	 * can go: any static box past the chuck face would stand inside the pad's swept circle.
+	 */
 	public static final Mount BUFFER_PAD =
-		axial("pneumatic_buffer", "buffing_pad", 3.0F, 4.5F, BARREL_UP);
+		axial("pneumatic_buffer", "buffing_pad", 5.5F, 0.0F, BARREL_UP);
+
+	/**
+	 * The Borer's whole head is the moving part — a face plate carrying four bits round its rim,
+	 * turning as one. That is what a boring head is, and it is the one thing that stops a 5x5 tool
+	 * being the 3x3 one drawn wider.
+	 */
+	public static final Mount BORER_HEAD =
+		axial("pneumatic_borer", "borer_head", 4.2F, 0.0F, BARREL_UP);
+
 	public static final Mount VACUUM_IMPELLER =
 		axial("pneumatic_vacuum_wand", "impeller", 7.0F, 0.0F, BARREL_UP);
 	public static final Mount WRENCH_SOCKET =
@@ -76,7 +101,7 @@ public class CPTPartials {
 	/** Every mount in the mod, for the startup check that they all baked. */
 	public static java.util.List<Mount> all() {
 		java.util.List<Mount> mounts = new java.util.ArrayList<>(java.util.List.of(HAND_DRILL_BIT,
-			JACKHAMMER_CHISEL, SAW_BLADE, GRINDER_WHEEL, BUFFER_PAD, VACUUM_IMPELLER,
+			JACKHAMMER_CHISEL, SAW_BLADE, GRINDER_WHEEL, BUFFER_PAD, BORER_HEAD, VACUUM_IMPELLER,
 			WRENCH_SOCKET));
 		mounts.addAll(java.util.List.of(TUNNEL_DRILL_BITS));
 		return mounts;

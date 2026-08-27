@@ -1,10 +1,10 @@
 # Create: Pneumatic Tools
 
-Eight handheld tools that run off a Create backtank.
+Nine handheld tools that run off a Create backtank.
 
 **Minecraft 1.21.1 · NeoForge 21.1.219+ · Create 6.0+**
 
-![The Hand Drill in hand, with the other seven tools on the hotbar](branding/tools-in-hand.png)
+![The Pneumatic Saw in hand, with the other eight tools on the hotbar](branding/tools-in-hand.png)
 
 A Copper Backtank is already a portable power supply — Create just spends it on breathing and on the
 Extendo Grip. This addon spends it on work. Most of what Create does with rotation to a block bolted
@@ -21,7 +21,7 @@ spin on a spindle across it, and the jackhammer's chisel recoils and strikes. Th
 carry them, spool up when you put them to work, and stop when the tank runs dry, so an empty
 backtank is something you see in your hand before you swing at anything.
 
-![All eight tools on a hotbar](branding/the-eight-tools.png)
+![All nine tools on a hotbar](branding/the-nine-tools.png)
 
 ---
 
@@ -34,6 +34,7 @@ backtank is something you see in your hand before you swing at anything.
 | **Hand Drill** | A Mechanical Drill you can carry. Quick on anything a pickaxe or a shovel handles. | 900 blocks |
 | **Pneumatic Jackhammer** | Shatters hard blocks in a fixed quarter-second — Obsidian and Deepslate take the same moment. Netherite tier. Slow and **free** on anything soft. | 90 hard blocks |
 | **Tunnelling Drill** | Clears a 3x3 slice lying flat against the face you drilled — a wall if you drilled a wall, a trench if you drilled the floor. Charged once per burst, however many of the nine blocks were there. | 100 bursts |
+| **Pneumatic Borer** | The same burst five blocks across instead of three — twenty-five at a time. Wider and slower, out of half as many bursts a tank. Built in a Mechanical Crafter. | 50 bursts |
 | **Pneumatic Saw** | Fells a whole tree from one log, canopy and all. Bamboo, cane, cactus and chorus too. | 60 trees |
 
 ### Surface treatment
@@ -41,14 +42,14 @@ backtank is something you see in your hand before you swing at anything.
 | Tool | What it does | Per tank |
 |---|---|---|
 | **Pneumatic Grinder** | Strips bark from a log, scrapes one stage of oxide off copper, takes the wax off a sealed block. | 300 surfaces |
-| **Pneumatic Buffer** | Waxes copper by friction alone — no Honeycomb. Polishes a whole stack of Rose Quartz in one click. | 300 actions |
+| **Pneumatic Buffer** | Seals copper with the wax built into it — no Honeycomb to carry. | 300 blocks |
 
 ### Power and pickup
 
 | Tool | What it does | Per tank |
 |---|---|---|
 | **Pneumatic Vacuum Wand** | Hold Right-Click and loose items and experience come to you from eight blocks out. A pulse with nothing in range is free. | 900 pulses |
-| **Pneumatic Wrench** | Portable torque. Hold it against a shaft and it drives the network at 64 RPM with 1024 SU behind it — twice a Hand Crank's speed and four times its torque — for as long as you hold the button. | 450 pulses |
+| **Pneumatic Wrench** | Portable torque. Hold it against a still shaft and it drives the network at 64 RPM with 1024 SU behind it — twice a Hand Crank's speed and four times its torque. Held against a network already turning, it matches that network's speed and direction and lends the same 1024 SU. | 450 pulses |
 
 ---
 
@@ -76,6 +77,21 @@ the face you aimed at, exactly where you would have placed a motor by hand. It h
 that only the wrench renews, so letting go, walking away, switching item, dying, disconnecting or
 crashing all end it the same way: the renewals stop and the block deletes itself.
 
+It also **never fights a network that is already turning**. Two generators that disagree about speed
+or direction is not a slow network in Create — it is a broken block, and which of the two breaks
+depends on which arrived last. So a wrench held against a shaft that is already moving matches that
+shaft's speed and direction exactly and contributes only its capacity, which is the case it is most
+useful for: a line that is overstressed rather than stopped. Only a still shaft gets the wrench's own
+64 RPM, and which way it turns is decided by which face you grab.
+
+**It is worth 1024 SU at any speed.** A backtank breathes at one rate, so the wrench delivers one
+amount of power, and the speed it happens to be turning at decides whether that arrives as speed or
+as torque — half the RPM, twice the torque. Create bills its own generators the other way, as a fixed
+torque whose Stress Units rise with speed, which is right when the generator owns its speed (a Water
+Wheel turns at 8 and that is that) and wrong for a tool that can be handed somebody else's: a fixed
+16 SU/RPM matched onto a 192 RPM network was worth 3072 SU for exactly the air that buys 1024 on a
+shaft of your own.
+
 Everything is configurable in `config/createpneumatictools-server.toml`, including the jackhammer's
 break time in ticks and the vacuum's radius. Set any tool's rating to **0** and it becomes free and
 needs no backtank at all.
@@ -84,7 +100,7 @@ needs no backtank at all.
 
 ## Recipes
 
-Seven of the nine are the same shape — a **working head**, a **Brass Sheet**, an **Andesite Alloy**
+Six of the nine are the same shape — a **working head**, a **Brass Sheet**, an **Andesite Alloy**
 grip, stacked in a column:
 
 ```
@@ -99,20 +115,37 @@ grip, stacked in a column:
 | Pneumatic Saw | Mechanical Saw |
 | Pneumatic Wrench | Hand Crank |
 | Pneumatic Grinder | Red Sand Paper |
-| Pneumatic Buffer | Sand Paper |
+| Pneumatic Buffer | Honeycomb Block |
 | Pneumatic Vacuum Wand | Propeller |
 
-The coarse paper makes the subtractive tool and the fine paper makes the finishing one, which is the
-whole of what you need to remember about that pair.
+The Grinder's head is Red Sand Paper because it takes a layer off; the Buffer's is a Honeycomb Block
+because the wax it lays down had to come from somewhere, and paying for it once at the bench is what
+lets the tool seal a roof without a stack of Honeycomb in your pocket.
 
-The other two are upgrades of tools you already have:
+The other two are both upgrades of the Hand Drill:
 
 ```
  . O .          O = Powdered Obsidian        D D D          D = Mechanical Drill
- O D O          D = Hand Drill               D W D          W = Pneumatic Wrench
+ O D O          D = Hand Drill               D H D          H = Hand Drill
  . O .                                       D D D
    -> Pneumatic Jackhammer                     -> Tunnelling Drill
 ```
+
+Nine Mechanical Drills for a tool that breaks nine blocks. The **Pneumatic Borer** carries that rule
+one step further, and is the one thing here you cannot make at a workbench — five blocks across is a
+recipe five blocks across, so it goes in a **Mechanical Crafter**:
+
+```
+ D D D D D      D = Mechanical Drill      (16)
+ D P S P D      P = Precision Mechanism    (4)
+ D S T S D      S = Brass Sheet            (4)
+ D P S P D      T = Tunnelling Drill
+ D D D D D
+   -> Pneumatic Borer
+```
+
+Sixteen more drills for sixteen more blocks. Mechanical crafting recipes are not in the vanilla
+recipe book — none of Create's own are either — so look for it in JEI or EMI.
 
 ---
 

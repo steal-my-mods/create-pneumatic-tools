@@ -3,7 +3,7 @@
   "category": "equipment",
   "key": {
     "H": {
-      "item": "create:sand_paper"
+      "item": "minecraft:honeycomb_block"
     },
     "S": {
       "item": "create:brass_sheet"

@@ -36,7 +36,7 @@ public class CPTBlocks {
 			.sound(SoundType.EMPTY)));
 
 	/**
-	 * What Create quotes for the source, and what it actually supplies.
+	 * What Create quotes for the source.
 	 *
 	 * <p>Capacity only — a generator has no impact. The figure deliberately beats Create's own Hand
 	 * Crank rather than matching it: a crank is a handle you turn with your arms, and a pneumatic
@@ -45,10 +45,19 @@ public class CPTBlocks {
 	 * Mechanical Press and running one properly. What it does not have is a crank's permanence — it
 	 * lasts as long as you stand there holding the button, and about three and a half minutes of
 	 * backtank.
+	 *
+	 * <p><b>This registration is the nominal figure, not the live one.</b> Create's capacity registry
+	 * is keyed on the <em>block</em>, so it cannot know what speed any particular source is turning
+	 * at — and this one supplies a fixed number of Stress Units rather than a fixed number per RPM.
+	 * What is registered here is therefore the per-RPM figure at the wrench's own speed, which is what
+	 * it supplies on a shaft that was standing still. The live figure comes from
+	 * {@link com.createpneumatictools.source.PneumaticSourceBlockEntity#calculateAddedStressCapacity},
+	 * which divides by whatever speed the source ended up at.
 	 */
 	public static void registerStressValues(FMLCommonSetupEvent event) {
 		event.enqueueWork(() -> {
-			BlockStressValues.CAPACITIES.register(PNEUMATIC_SOURCE.get(), CPTConfig::wrenchCapacity);
+			BlockStressValues.CAPACITIES.register(PNEUMATIC_SOURCE.get(),
+				() -> CPTConfig.wrenchStressUnits() / CPTConfig.wrenchRpm());
 			// The quoted speed is a whole number and the config is a float, so this is the tooltip's
 			// figure rather than the source's: what the source actually turns at is
 			// PneumaticSourceBlockEntity.getGeneratedSpeed, read live.

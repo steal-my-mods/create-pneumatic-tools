@@ -30,6 +30,9 @@ public class CPTConfig {
 	public final ModConfigSpec.IntValue tunnelDrillUsesPerTank;
 	public final ModConfigSpec.DoubleValue tunnelDrillSpeed;
 
+	public final ModConfigSpec.IntValue borerUsesPerTank;
+	public final ModConfigSpec.DoubleValue borerSpeed;
+
 	public final ModConfigSpec.IntValue sawUsesPerTank;
 	public final ModConfigSpec.DoubleValue sawSpeed;
 
@@ -44,7 +47,7 @@ public class CPTConfig {
 	public final ModConfigSpec.IntValue wrenchUsesPerTank;
 	public final ModConfigSpec.IntValue wrenchInterval;
 	public final ModConfigSpec.DoubleValue wrenchRpm;
-	public final ModConfigSpec.DoubleValue wrenchCapacity;
+	public final ModConfigSpec.DoubleValue wrenchStressUnits;
 	public final ModConfigSpec.DoubleValue wrenchRange;
 
 	private CPTConfig(ModConfigSpec.Builder builder) {
@@ -81,6 +84,18 @@ public class CPTConfig {
 			.defineInRange("tunnelDrillSpeed", 7.0, 1.0, 1000.0);
 		builder.pop();
 
+		builder.comment("5x5 Pneumatic Borer").push("borer");
+		borerUsesPerTank = usesPerTank(builder, "borerUsesPerTank", 50,
+			"Bursts a full Copper Backtank will fire. One burst is the whole 5x5 wall, charged once,",
+			"however many of the twenty-five blocks were actually there. Half the Tunnelling Drill's",
+			"count for nearly three times the blocks: the Borer moves more stone per tank and empties",
+			"one far faster, which is the trade it is meant to be.");
+		borerSpeed = builder
+			.comment("Mining speed on anything a pickaxe or a shovel handles. Lower again than the",
+				"Tunnelling Drill's -- every step up in width is a step down in speed per block.")
+			.defineInRange("borerSpeed", 5.0, 1.0, 1000.0);
+		builder.pop();
+
 		builder.comment("Pneumatic Saw").push("saw");
 		sawUsesPerTank = usesPerTank(builder, "sawUsesPerTank", 60,
 			"Trees a full Copper Backtank will fell. Charged per tree, not per log -- the whole",
@@ -99,8 +114,7 @@ public class CPTConfig {
 
 		builder.comment("Pneumatic Buffer").push("buffer");
 		bufferUsesPerTank = usesPerTank(builder, "bufferUsesPerTank", 300,
-			"Actions a full Copper Backtank will pay for. One waxed block or one polished item is",
-			"one action, so buffing a stack of 64 costs 64 of these.");
+			"Blocks a full Copper Backtank will seal. One waxed block is one use.");
 		builder.pop();
 
 		builder.comment("Pneumatic Vacuum Wand").push("vacuum");
@@ -133,13 +147,16 @@ public class CPTConfig {
 			.comment("Speed the wrench turns a network at. Create's Hand Crank, the hand tool this is",
 				"the powered answer to, is 32 -- so the default here is twice a crank.")
 			.defineInRange("wrenchRpm", 64.0, 1.0, 256.0);
-		wrenchCapacity = builder
-			.comment("Stress capacity the wrench supplies, per RPM. Create's Hand Crank is 8, so at",
-				"each tool's own default speed the wrench is worth 1024 Stress Units against the",
-				"crank's 256. That is the difference between only just turning one Mechanical Press",
-				"at 32 RPM and running one at 64 with the belts that feed it. Torque is what a real",
-				"impact wrench has over a hand crank, so torque is where the air goes.")
-			.defineInRange("wrenchCapacity", 16.0, 0.0, 10000.0);
+		wrenchStressUnits = builder
+			.comment("Stress Units the wrench supplies -- the whole figure, not a per-RPM one, and the",
+				"same figure at every speed. A tank breathes at one rate, so the wrench delivers one",
+				"amount of power: at half the speed it supplies twice the torque and at twice the",
+				"speed half of it, which is what a real air motor does and what stops a wrench that",
+				"joined somebody else's fast network being worth more than one driving its own.",
+				"Create's Hand Crank manages 256 at its own 32 RPM, so this is four times a crank.",
+				"That is the difference between only just turning one Mechanical Press and running one",
+				"with the belts that feed it.")
+			.defineInRange("wrenchStressUnits", 1024.0, 0.0, 1000000.0);
 		wrenchRange = builder
 			.comment("How far you can get from the shaft before the wrench lets go of it, in blocks.")
 			.defineInRange("wrenchRange", 8.0, 1.0, 32.0);
@@ -203,6 +220,14 @@ public class CPTConfig {
 		return read(INSTANCE.tunnelDrillSpeed).floatValue();
 	}
 
+	public static int borerUsesPerTank() {
+		return read(INSTANCE.borerUsesPerTank);
+	}
+
+	public static float borerSpeed() {
+		return read(INSTANCE.borerSpeed).floatValue();
+	}
+
 	public static int sawUsesPerTank() {
 		return read(INSTANCE.sawUsesPerTank);
 	}
@@ -247,8 +272,8 @@ public class CPTConfig {
 		return read(INSTANCE.wrenchRpm).floatValue();
 	}
 
-	public static double wrenchCapacity() {
-		return read(INSTANCE.wrenchCapacity);
+	public static double wrenchStressUnits() {
+		return read(INSTANCE.wrenchStressUnits);
 	}
 
 	public static double wrenchRange() {

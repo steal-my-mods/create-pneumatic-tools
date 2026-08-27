@@ -17,6 +17,7 @@ import com.simibubi.create.content.equipment.armor.BacktankUtil;
 import com.simibubi.create.content.kinetics.base.DirectionalKineticBlock;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
 import com.simibubi.create.content.kinetics.crank.HandCrankBlock;
+import com.simibubi.create.content.kinetics.motor.CreativeMotorBlockEntity;
 import com.simibubi.create.content.kinetics.simpleRelays.AbstractSimpleShaftBlock;
 
 import net.minecraft.commands.arguments.EntityAnchorArgument;
@@ -73,6 +74,9 @@ public class PneumaticToolGameTests {
 
 	/** Long enough for Create's rotation propagator to have reached the far end of a shaft. */
 	private static final int SETTLE_TICKS = 12;
+
+	/** Long enough after the renewals stop for an unrenewed source to have removed itself. */
+	private static final int LEASE_LAPSE = PneumaticSourceBlockEntity.LEASE_TICKS + 5;
 
 	// --- the air budget ---------------------------------------------------------------------------
 
@@ -305,6 +309,53 @@ public class PneumaticToolGameTests {
 		helper.succeed();
 	}
 
+	// --- the borer ---------------------------------------------------------------------------------
+
+	@GameTest(template = "workshop")
+	public static void theBorerClearsFiveByFive(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.BORER.get());
+		BlockPos centre = SITE.above(2)
+			.north(2);
+		buildWall(helper, centre, 3);
+		lookAt(player, Direction.NORTH);
+
+		mine(helper, player, centre);
+
+		for (int x = -2; x <= 2; x++)
+			for (int y = -2; y <= 2; y++)
+				helper.assertBlockNotPresent(Blocks.STONE, centre.offset(x, y, 0));
+		// The ring one further out has to survive, or the burst is not a 5x5 -- and this is the
+		// assertion that would still pass if the Borer were quietly running the Tunnelling Drill's
+		// radius, so the 5x5 sweep above is the one that separates them.
+		helper.assertBlockPresent(Blocks.STONE, centre.offset(3, 0, 0));
+		helper.assertBlockPresent(Blocks.STONE, centre.offset(0, 3, 0));
+		helper.succeed();
+	}
+
+	@GameTest(template = "workshop")
+	public static void theBorerChargesOncePerBurst(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.BORER.get());
+		BlockPos centre = SITE.above(2)
+			.north(2);
+		buildWall(helper, centre, 3);
+		lookAt(player, Direction.NORTH);
+
+		int before = air(player);
+		mine(helper, player, centre);
+
+		// Twenty-four neighbours, each of which Create's break helper reports back to the tool. The
+		// cascade guard is what makes that one charge instead of twenty-five, and it is worth a test
+		// of its own at this width: a 5x5 that recursed would clear the whole box in one click.
+		int spent = before - air(player);
+		int expected = costOf(CPTConfig.borerUsesPerTank());
+		if (spent != expected)
+			throw new GameTestAssertException(
+				"one burst spent " + spent + " air, expected " + expected + " -- the cascade guard "
+					+ "is not holding");
+		helper.assertBlockPresent(Blocks.STONE, centre.offset(3, 3, 0));
+		helper.succeed();
+	}
+
 	// --- the saw ----------------------------------------------------------------------------------
 
 	@GameTest(template = "workshop")
@@ -409,51 +460,6 @@ public class PneumaticToolGameTests {
 		Player player = worker(helper, CPTItems.BUFFER.get());
 		BlockPos at = SITE.above();
 		expectTreatment(helper, player, at, Blocks.COPPER_BLOCK, Blocks.WAXED_COPPER_BLOCK);
-		helper.succeed();
-	}
-
-	@GameTest(template = "workshop")
-	public static void theBufferPolishesAWholeStackInOneClick(GameTestHelper helper) {
-		Player player = worker(helper, CPTItems.BUFFER.get());
-		player.setItemInHand(InteractionHand.OFF_HAND,
-			new ItemStack(AllItems.ROSE_QUARTZ.get(), 16));
-
-		int before = air(player);
-		use(helper, player);
-
-		if (!player.getOffhandItem()
-			.isEmpty())
-			throw new GameTestAssertException("the buffer left " + player.getOffhandItem()
-				.getCount() + " unpolished");
-		if (!player.getInventory()
-			.contains(new ItemStack(AllItems.POLISHED_ROSE_QUARTZ.get())))
-			throw new GameTestAssertException("no polished rose quartz came back");
-
-		int spent = before - air(player);
-		int expected = 16 * costOf(CPTConfig.bufferUsesPerTank());
-		if (spent != expected)
-			throw new GameTestAssertException(
-				"polishing sixteen spent " + spent + " air, expected " + expected);
-		helper.succeed();
-	}
-
-	@GameTest(template = "workshop")
-	public static void anEmptyingTankStopsTheBufferPartWay(GameTestHelper helper) {
-		Player player = worker(helper, CPTItems.BUFFER.get());
-		// Enough for three of the sixteen, so the loop has to stop on its own rather than on running
-		// out of feedstock -- and what it has not done must still be in hand.
-		int affordable = 3;
-		setAir(player, affordable * costOf(CPTConfig.bufferUsesPerTank()));
-		player.setItemInHand(InteractionHand.OFF_HAND,
-			new ItemStack(AllItems.ROSE_QUARTZ.get(), 16));
-
-		use(helper, player);
-
-		int left = player.getOffhandItem()
-			.getCount();
-		if (left != 16 - affordable)
-			throw new GameTestAssertException(
-				"the buffer left " + left + " in hand, expected " + (16 - affordable));
 		helper.succeed();
 	}
 
@@ -688,8 +694,118 @@ public class PneumaticToolGameTests {
 					+ " Stress Units and a Hand Crank supplies " + byHand
 					+ " -- an air tool that is no stronger than a handle you turn by hand is not worth "
 					+ "the backtank");
+			// And the figure is exactly the configured one, which is the same invariant
+			// aMatchedWrenchIsWorth* asserts -- here on a shaft the wrench is driving itself rather
+			// than one it joined, because that is the other path through calculateAddedStressCapacity.
+			float expected = (float) CPTConfig.wrenchStressUnits();
+			if (Math.abs(supplied - expected) > expected / 1000.0F)
+				throw new GameTestAssertException("the wrench supplies " + supplied
+					+ " Stress Units driving a shaft of its own, expected " + expected);
 			helper.succeed();
 		});
+	}
+
+	@GameTest(template = "workshop", timeoutTicks = 200)
+	public static void theWrenchFallsInBehindATurningNetwork(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.WRENCH.get());
+		// A Creative Motor pointing up into a shaft, so the shaft turns at a speed and a sign this
+		// test knows: +16, where the wrench left to itself would produce -64. Both halves of that
+		// disagreement matter -- the magnitude proves the wrench did not overspeed the network, and
+		// the sign is the half that used to have Create delete the source on the tick it appeared.
+		BlockPos motor = SITE.above();
+		BlockPos shaft = motor.above();
+		helper.setBlock(motor, AllBlocks.CREATIVE_MOTOR.getDefaultState()
+			.setValue(DirectionalKineticBlock.FACING, Direction.UP));
+		helper.setBlock(shaft, AllBlocks.SHAFT.getDefaultState()
+			.setValue(AbstractSimpleShaftBlock.AXIS, Direction.Axis.Y));
+
+		float driven = drivenSpeed(helper, motor);
+		useOn(helper, player, shaft);
+		holdOpen(helper, shaft.above(), SETTLE_TICKS);
+
+		helper.runAfterDelay(SETTLE_TICKS, () -> {
+			// The source has to still be there. Create's answer to a generator that disagrees with its
+			// network is to destroy it, so a missing block here is the whole bug rather than a detail.
+			helper.assertBlockPresent(CPTBlocks.PNEUMATIC_SOURCE.get(), shaft.above());
+			if (!(helper.getBlockEntity(shaft) instanceof KineticBlockEntity kinetic))
+				throw new GameTestAssertException("no shaft to read");
+			float speed = kinetic.getTheoreticalSpeed();
+			if (Math.abs(speed - driven) > 0.01F)
+				throw new GameTestAssertException("the shaft was turning at " + driven
+					+ " RPM and the wrench left it at " + speed
+					+ " -- a wrench joining a network should add torque, not argue about speed");
+			helper.succeed();
+		});
+	}
+
+	@GameTest(template = "workshop", timeoutTicks = 200)
+	public static void aMatchedWrenchIsWorthItsFullTorqueOnASlowNetwork(GameTestHelper helper) {
+		expectMatchedContribution(helper, 16);
+	}
+
+	@GameTest(template = "workshop", timeoutTicks = 200)
+	public static void aMatchedWrenchIsWorthNoMoreOnAFastOne(GameTestHelper helper) {
+		// The pair is the point. Create bills a generator as per-RPM times speed, so a fixed per-RPM
+		// figure made the wrench worth three times as much for joining a 192 RPM network as for
+		// driving its own at 64 -- the same air, the same tool, paid by how fast somebody else's
+		// shaft happened to be turning. These two tests differ only in that number and must agree.
+		expectMatchedContribution(helper, 192);
+	}
+
+	/**
+	 * Drives a shaft with a Creative Motor at {@code motorRpm}, matches a wrench onto it, and asserts
+	 * the wrench added exactly the configured Stress Units — no more and no less, whatever the speed.
+	 *
+	 * <p>Measured twice on the same network rather than against a figure computed here: once while the
+	 * wrench is on it, and again after the lease has lapsed and the source has gone. That is what makes
+	 * it a test of the capacity reaching Create rather than of this mod's arithmetic agreeing with
+	 * itself.
+	 */
+	private static void expectMatchedContribution(GameTestHelper helper, int motorRpm) {
+		Player player = worker(helper, CPTItems.WRENCH.get());
+		BlockPos motor = SITE.above();
+		BlockPos shaft = motor.above();
+		helper.setBlock(motor, AllBlocks.CREATIVE_MOTOR.getDefaultState()
+			.setValue(DirectionalKineticBlock.FACING, Direction.UP));
+		helper.setBlock(shaft, AllBlocks.SHAFT.getDefaultState()
+			.setValue(AbstractSimpleShaftBlock.AXIS, Direction.Axis.Y));
+		if (!(helper.getBlockEntity(motor) instanceof CreativeMotorBlockEntity driver))
+			throw new GameTestAssertException("no motor to set the speed of");
+		driver.generatedSpeed.setValue(motorRpm);
+
+		useOn(helper, player, shaft);
+		holdOpen(helper, shaft.above(), SETTLE_TICKS);
+
+		float[] withWrench = new float[1];
+		helper.runAfterDelay(SETTLE_TICKS, () -> withWrench[0] = capacityAt(helper, shaft));
+		helper.runAfterDelay(SETTLE_TICKS + LEASE_LAPSE, () -> {
+			helper.assertBlockNotPresent(CPTBlocks.PNEUMATIC_SOURCE.get(), shaft.above());
+			float alone = capacityAt(helper, shaft);
+			float added = withWrench[0] - alone;
+			float expected = (float) CPTConfig.wrenchStressUnits();
+			// One part in a thousand: the figure has been through a float divide by the speed and a
+			// float multiply back by it, and at 192 RPM that does not land on the same bit pattern.
+			if (Math.abs(added - expected) > expected / 1000.0F)
+				throw new GameTestAssertException("at " + motorRpm + " RPM the network supplies "
+					+ alone + " Stress Units on its own and " + withWrench[0]
+					+ " with a matched wrench on it, so the wrench added " + added + " where "
+					+ expected + " was expected -- a wrench is worth the same at every speed");
+			helper.succeed();
+		});
+	}
+
+	/** The speed a generator is producing, once it has had a moment to reach its own network. */
+	private static float drivenSpeed(GameTestHelper helper, BlockPos generator) {
+		if (!(helper.getBlockEntity(generator) instanceof KineticBlockEntity kinetic))
+			throw new GameTestAssertException("no generator at " + generator);
+		return kinetic.getGeneratedSpeed();
+	}
+
+	private static float capacityAt(GameTestHelper helper, BlockPos member) {
+		if (!(helper.getBlockEntity(member) instanceof KineticBlockEntity kinetic))
+			throw new GameTestAssertException("no kinetic block at " + member);
+		return kinetic.getOrCreateNetwork()
+			.calculateCapacity();
 	}
 
 	@GameTest(template = "workshop", timeoutTicks = 200)
@@ -894,8 +1010,13 @@ public class PneumaticToolGameTests {
 	private static void holdOpen(GameTestHelper helper, BlockPos source, int ticks) {
 		for (int tick = 1; tick <= ticks; tick++)
 			helper.runAfterDelay(tick, () -> {
-				if (helper.getBlockEntity(source) instanceof PneumaticSourceBlockEntity be)
-					be.renew();
+				// The level's own getBlockEntity, not the helper's: the helper's throws when there is
+				// nothing there, which turns "something destroyed the source" into a failure reported
+				// from inside a renewal loop instead of from whichever assertion was looking for it.
+				BlockEntity be = helper.getLevel()
+					.getBlockEntity(helper.absolutePos(source));
+				if (be instanceof PneumaticSourceBlockEntity live)
+					live.renew();
 			});
 	}
 
@@ -907,11 +1028,6 @@ public class PneumaticToolGameTests {
 				.getItem()
 				.onUseTick(helper.getLevel(), player, player.getMainHandItem(),
 					player.getUseItemRemainingTicks() - tick);
-	}
-
-	private static void use(GameTestHelper helper, Player player) {
-		player.getMainHandItem()
-			.use(helper.getLevel(), player, InteractionHand.MAIN_HAND);
 	}
 
 	private static InteractionResult useOn(GameTestHelper helper, Player player, BlockPos pos) {

@@ -6,7 +6,7 @@ The SUMMARY below goes in the project's one-line Summary field. Everything under
 the Description field, as markdown.
 
 Image placeholders are marked TODO. CurseForge hosts images itself, so upload
-branding/tools-in-hand.png and branding/the-eight-tools.png through its gallery first, then paste
+branding/tools-in-hand.png and branding/the-nine-tools.png through its gallery first, then paste
 back the URLs it gives you.
 -->
 
@@ -41,7 +41,7 @@ Eight handheld tools that run off the tank on your back. No durability and no re
 - **Pneumatic Vacuum Wand.** Hold right-click and loose items and experience come to you from eight blocks out. A pulse that catches nothing is free, so leaning on the button costs you nothing.
 - **Pneumatic Wrench.** Hold it against a shaft and it drives your kinetic network at 64 RPM with 1024 Stress Units behind it, for as long as you hold the button. Twice a Hand Crank's speed, four times its torque, and no hunger. Let go, walk away or run dry and it stops. Nothing is left behind.
 
-<!-- TODO: the-eight-tools.png -->
+<!-- TODO: the-nine-tools.png -->
 
 ## How the air works
 

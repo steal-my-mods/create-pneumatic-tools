@@ -1,6 +1,6 @@
 # Create: Pneumatic Tools — repo guide
 
-Create addon for **Minecraft 1.21.1 / NeoForge 21.1.219+ / Create 6.0+**. Eight handheld tools that
+Create addon for **Minecraft 1.21.1 / NeoForge 21.1.219+ / Create 6.0+**. Nine handheld tools that
 run off a Create backtank.
 
 ## Commands
@@ -57,7 +57,8 @@ config can be read against Create's without converting anything, and
 |---|---|
 | `air/AirSupply` | The only place this mod touches `BacktankUtil`. `isPowered` (both sides, no cost) and `spend` (server only) |
 | `item/PneumaticToolItem` | Base: hands the durability bar to the backtank, and owns `refuse` — the one "no air" sound |
-| `item/PneumaticDiggerItem` | Base for the four block-breakers. Owns the `TOOL` component and the `mineBlock` entry point |
+| `item/PneumaticDiggerItem` | Base for the five block-breakers. Owns the `TOOL` component and the `mineBlock` entry point |
+| `item/BurstDiggerItem` | Base for the two that take a whole square down at once. The Tunnelling Drill and the Borer differ only in `radius()`, their rating and their speed |
 | `tool/DiggingHandler` | `PlayerEvent.BreakSpeed`. **All** of a digger's speed comes from here, and only while the tank has air |
 | `tool/Excavation` | The re-entrancy guard that stops the tunnelling drill and the saw breaking blocks forever — and the veto that keeps the extra blocks inside spawn protection and the world border |
 | `client/CPTTooltips` | Registers each item with Create's `ItemDescription` so they get Create-style tooltips |
@@ -89,7 +90,7 @@ config can be read against Create's without converting anything, and
   the saw take down was described to nobody. Claim mods were always fine — Create's
   `destroyBlockAs` posts `BlockEvent.BreakEvent` and honours a cancellation — but vanilla's own two
   gates are not listeners, so `Excavation.aCascadeStaysInsideTheRules` asks `level.mayInteract` on
-  their behalf. `TunnelDrillItem.breakIfWorthIt` asks a second time before calling Create at all,
+  their behalf. `BurstDiggerItem.breakIfWorthIt` asks a second time before calling Create at all,
   which is not redundant: `destroyBlockAs` throws its break particle *before* it posts the event, so
   a veto alone leaves a puff of debris on a block that then does not break.
   `theTunnellingDrillStopsAtTheWorldBorder` covers it, by shrinking the border to one block wide
@@ -138,11 +139,6 @@ config can be read against Create's without converting anything, and
   Using the item cooldown rather than a timestamp of ours also greys the icon, which is the visible
   half the mod otherwise lacked. It gates `useOn` for those ten ticks, which costs nothing: a tool
   with no air had nothing to do with the click.
-- **The buffer's polishing loop must not re-ask `canPolish`.** It runs
-  `RecipeManager.getRecipesFor` — a stream over every sandpaper recipe, a match test on each, then a
-  sort of the survivors keyed on their output's description id — and `use()` has already asked
-  before the loop starts. Every item in a stack is the same item, so `split(1)` cannot change the
-  answer; asking per item made a stack of 64 pay for that query 64 times to be told what it knew.
 - **`ItemStack.mineBlock` runs *before* the block is removed.** That is what lets the saw hand the
   still-standing log's position to `TreeCutter.findTree`, which reads the block above it. Move the
   work to a break event and the tree search gets a different world than Create's own saw gives it.
@@ -160,15 +156,18 @@ config can be read against Create's without converting anything, and
   hand, not place a source. Anything in this mod that must beat a Create block to a click has to be
   a `RightClickBlock` listener at `EventPriority.HIGH` — at equal priority Create's runs first,
   because Create loads first, and a cancelled event never reaches the listeners behind it.
-- **`useOn` returning FAIL swallows the click; PASS lets it through to `use`.** The Buffer needs both
-  hooks — waxing on a block, polishing in the air — and `Minecraft.startUseItem` only falls through
-  to `use` when the block click was *not* consumed and *not* FAIL. So "this block will not wax" must
-  return PASS, or facing a wall would stop you polishing. "This block would wax but the tank is
-  empty" returns FAIL, which is correct: the click found something to do and could not do it.
+- **`useOn` returning FAIL swallows the click; PASS lets it through to `use`.**
+  `Minecraft.startUseItem` only falls through to `use` when the block click was *not* consumed and
+  *not* FAIL, and a swallowed click is also a click the offhand never sees. So the Grinder and the
+  Buffer both return PASS for "this block is not one I treat" and FAIL only for "this block is one I
+  treat and the tank is empty" — the second found something to do and could not do it, the first
+  found nothing and has no business eating the click. The Buffer used to need both hooks, because it
+  polished a stack out of the other hand on `use`; that is gone, and every tool here now works on a
+  block in the world.
 - **The tunneller re-casts the player's aim to find the face it drilled.** `mineBlock` is handed a
   position and no face, and the nearest axis of the *look* vector is not the same thing: cutting a
   trench you break the top of a block while looking mostly forwards, and a look-axis slice stands up
-  on end and digs a hole instead. `TunnelDrillItem.plane` clips from the eyes with
+  on end and digs a hole instead. `BurstDiggerItem.plane` clips from the eyes with
   `getPlayerPOVHitResult` and only trusts the answer when it lands on the block being broken —
   otherwise it falls back to the look axis, which is what the tool used everywhere before.
   `theTunnellingDrillFollowsTheFaceYouDrilled` is built on exactly the geometry where the two
@@ -215,6 +214,18 @@ config can be read against Create's without converting anything, and
   `hardness * 30 / speed`, so quoting a speed makes Obsidian at 50 hardness take seventeen times as
   long as Deepslate at 3 — which is exactly the difference the tool exists to erase. Asking for ticks
   and solving for the speed is what makes "five ticks" mean five ticks on both.
+- **The Borer's recipe is `create:mechanical_crafting`, and that means no recipe advancement.**
+  `generate_recipe_advancements.py` writes one per `minecraft:crafting_shaped` recipe and skips
+  everything else, which is right and not an oversight: the vanilla recipe book only shows vanilla
+  recipe types, so an advancement granting a mechanical crafting recipe would unlock a page the book
+  cannot draw. Create ships none for the Extendo Grip or the Crushing Wheel either. JEI and EMI read
+  the recipe manager directly and show it regardless.
+- **A burst charges once at any width, and the guard is what makes that true.** `BurstDiggerItem` is
+  one class for the 3x3 and the 5x5 because everything hard about a burst — finding the drilled face,
+  not recursing through Create's break helper, asking `level.mayInteract` on twenty-four blocks
+  vanilla never heard about — is the same problem at any radius. `theBorerChargesOncePerBurst` is not
+  a copy of the Tunnelling Drill's test for the sake of symmetry: a 5x5 that recursed would clear the
+  whole GameTest box on one click rather than merely overcharging.
 - **The saw has no cap on tree size.** Create's own saw has none either, and a capped saw that
   silently leaves half a canopy standing is worse to use than a slow one. If a giant jungle tree ever
   becomes a real problem, the fix is a config cap that refuses to fell rather than one that fells
@@ -292,10 +303,44 @@ model and one or more animated parts per tool, and `PneumaticToolRenderer` draws
   decomposes the result to Euler, because adding to the middle term instead would roll the tool about
   its own barrel. It checks its own answer by rebuilding the matrix: Euler extraction has two
   conventions that differ by the order of two multiplications, and both give a believable angle.
-- **A wheel cannot be mounted on the centre line.** A disc big enough to look like a disc has a radius
-  that reaches back through the body, the collar and the trigger. The saw, grinder and buffer carry
-  theirs out to the side on a stub spindle, which is where a circular saw and an angle grinder put
-  them anyway.
+- **A wheel mounted out to the side cannot be on the centre line.** A disc big enough to look like a
+  disc has a radius that reaches back through the body, the collar and the trigger. The saw and the
+  grinder carry theirs out to the side on a stub spindle, which is where a circular saw and an angle
+  grinder put them anyway.
+- **A side-mounted wheel goes on the tool's *left* flank — negative `across` — or nobody ever sees it
+  move.** The first-person transform is `Rx(-90) Ry(0) Rz(30)`, which lays the tool pointing away and
+  to the left; work model `+X` through it and it lands at `(0.87, 0, -0.5)` — toward the right of the
+  screen *and away from the camera*. So a wheel on `+X` is behind the barrel, at the edge of the
+  screen, and the one part of the tool that moves is the one part you cannot see. On `-X` it is on the
+  near side and turned toward the middle. Both wheels were built on `+X` first and it looked
+  reasonable in every still: it is only wrong from where the player stands, which is the one viewpoint
+  none of the geometry checks has. The cost is that the *icon* turns the other way — `gui_view` puts
+  `+X` toward the viewer — so the wheel is on the far side of the barrel there. It stays perfectly
+  legible because a disc of radius 4.5 offset by 4 reaches well past a body 5 wide, and the icon is
+  the view that matters less: it is one frame, and the tool is not moving in it.
+- **The three wheeled tools were one tool in three colours, and the fix was not more detail.** They
+  shared a head box, a spindle, a mount, `SPIN_FACE` and a disc of the same radius; only the disc's
+  thickness and material differed, which at sixteen pixels is nothing. What separates them now is
+  what separates the real tools: the **saw** is a big thin blade slung *below* the barrel with a hood
+  over it and a shoe under the nose; the **grinder** is a small thick puck at the nose behind a half
+  guard, with a side handle out the far flank; and the **buffer** is not a side-mounted wheel at all
+  — its pad faces forward on the barrel's own axis and turns `SPIN_AXIAL`. A different *motion* is
+  worth more than any amount of extra geometry, because it reads in the hand as well as in the slot.
+- **A guard has to sit outside its wheel's outermost sweep, and at these radii there is no room.**
+  `check_clearance` measures the AABB of a *rotated* tooth, which is larger than the tooth: the saw's
+  blade measures 4.5 but sweeps 5.50, so a rim strap round it needs the space between 5.5 and the
+  edge of the item box, and there is none above a barrel at z=10.5. Two things follow. The saw's
+  blade hangs below the barrel (`BARREL_UP - 2.0`) rather than on it, which is both where a circular
+  saw's blade is and the only place that leaves room for a hood; and both guards are built as
+  half-discs laid against the wheel's *inboard* face, which the clearance check exempts because they
+  do not overlap the wheel's own slab. That is what a real guard's side plate is anyway, and it can
+  be as large as it likes.
+- **`clipped()` is how a half-disc gets made, and it has to cut across the rows.** A `disc` in plane
+  `yz` is built as rows stacked along **y**, each spanning **z** — so filtering whole boxes by their
+  centre gives a fore/aft half and can never give a top/bottom one. `clipped` trims each box's
+  coordinate instead, which works on either axis. The grinder's guard is the rear half (cut on y, the
+  row axis, so whole rows drop); the saw's hood cheek is the upper half (cut on z, so every row is
+  trimmed to half its span).
 - **Anything a moving part sits inside has to be built as walls.** Cuboids cannot be hollow, and a
   solid box in the same place looks identical from outside while swallowing the part whole — which is
   what the vacuum's flare did to its impeller. `tube()` builds the square annulus, and it takes a
@@ -375,8 +420,26 @@ name inside `level.dat` need not match the folder, since quick play keys off the
 `session.lock` in the save will refuse the next launch.
 
 The README's two images are crops of one frame — `branding/tools-in-hand.png` and
-`branding/the-eight-tools.png`. They are checked in rather than generated, so nothing regenerates
-them when a model changes; retaking them is this command plus a crop.
+`branding/the-nine-tools.png`. They are checked in rather than generated, so nothing regenerates
+them when a model changes. Retaking them is one run and two crops, at a 1708x960 window:
+
+```bash
+rm -f run/saves/Photos/session.lock                 # or the next launch is refused
+./gradlew runClient -PquickPlay=Photos -Dcreatepneumatictools.photos=4   # slot 4 is the Saw
+S=run/screenshots/<the-first-of-the-three>.png
+magick "$S" -crop 1708x610+0+350  branding/tools-in-hand.png
+magick "$S" -crop 740x100+484+862 branding/the-nine-tools.png
+```
+
+The hotbar crop is not eyeballed: vanilla draws the hotbar 182x22 GUI pixels wide, centred, flush
+with the bottom of the screen, so at GUI scale 4 it is 728x88 at x=(1708-728)/2. A few pixels of
+margin either side is what the numbers above add. Change the window size and that arithmetic is what
+to redo.
+
+**Photograph the Saw, not the Hand Drill.** The hero shot has one job beyond looking like a tool —
+showing that the thing which *moves* can be seen — and the Saw's blade is the biggest moving part in
+the mod. A drill's bit is four pixels at the end of a barrel and photographs identically whether the
+left-flank mount survived or not.
 
 ## Art
 
@@ -425,15 +488,72 @@ Create's rotation is a graph of block entities: a member is found by its neighbo
 what is at a position, so an item in a hand can never join a kinetic network. While you hold the
 button, the wrench keeps a real generator in the empty space against the face you aimed at.
 
-- **It deliberately out-muscles a Hand Crank rather than matching it.** 64 RPM and 16 SU per RPM
-  against the crank's 32 and 8 — twice the speed and four times the torque, which is the difference
-  between only just turning one Mechanical Press at 32 RPM and running one at 64 with the belts that
-  feed it. Both numbers were checked against Create's own registration (`AllBlocks.HAND_CRANK`:
+- **It deliberately out-muscles a Hand Crank rather than matching it — on a shaft that is still.**
+  64 RPM and 1024 Stress Units against the crank's 32 and 256 — twice the speed and four times the
+  output,
+  which is the difference between only just turning one Mechanical Press at 32 RPM and running one at
+  64 with the belts that feed it. On a network already turning it matches instead and only lends its
+  capacity; see `matchOrDrive` below for why that is the only thing it can safely do. Both numbers were checked against Create's own registration (`AllBlocks.HAND_CRANK`:
   `CStress.setCapacity(8.0)`, `setGeneratorSpeed(32)`), and
   `theWrenchOutMusclesAHandCrank` reads the figure back off the live network rather than out of the
   config, so it also fails if the source joins the network without registering its capacity. What
   the wrench does not have is a crank's permanence: it lasts as long as you stand there holding the
   button, and about three and a half minutes of backtank.
+- **The source generates *nothing* on its first tick, and that is deliberate.** Create does not
+  degrade a generator that disagrees with its network — it destroys the block.
+  `RotationPropagator.propagateNewSource` calls `world.destroyBlock` when the conveyed speed's sign
+  opposes the neighbour's, and `GeneratingKineticBlockEntity.applyNewSpeed` does the same to one
+  overruled into turning the other way. The wrench's direction comes from `convertToDirection(rpm,
+  FACING)` and FACING is the opposite of the clicked face, so *which end of the shaft you grab decides
+  the sign* — and about half of all clicks onto a moving shaft used to lose. Worse, the wrench
+  re-places the source every tick it is held, so the result was a block appearing and being destroyed
+  once a tick, with a break sound each time.
+  `PneumaticSourceBlockEntity.matchOrDrive` fixes it by not guessing: with `getGeneratedSpeed()`
+  returning 0 the block is not a source (`isSource()` is defined as `getGeneratedSpeed() != 0`), so
+  the propagator adopts it as an ordinary member and **sets its speed to whatever this position runs
+  at** — with the full geometry of gearboxes, cog reversals and speed controllers already applied.
+  Reading that back the next tick and generating exactly it cannot conflict, and for a reason rather
+  than by luck: for an axis connection Create's modifier satisfies `modifier(a→b) == 1/modifier(b→a)`,
+  so a block driven at `s = s_neighbour × m` which generates `s` conveys `s × 1/m = s_neighbour`
+  straight back, and equal speeds are the one case the propagator leaves alone. Do not try to compute
+  the match instead: `getConveyedSpeed` and `getRotationSpeedModifier` are both **private**, and
+  reading the neighbour's speed directly is right only when the modifier happens to be 1.
+- **Match on `getTheoreticalSpeed()`, never on `getSpeed()`.** `getSpeed()` returns 0 when the network
+  is overstressed or the tick rate is frozen. Matching on it would decide there was nothing to match
+  at exactly the moment there was — an overstressed line is the case a wrench lending torque is most
+  wanted for.
+- **The wrench supplies a fixed number of Stress Units, not a fixed number per RPM, and the override
+  that does it is not optional.** Create bills a generator as `per-RPM × |generated speed|`
+  (`KineticNetwork.getActualCapacityOf`), so a fixed per-RPM figure is a fixed *torque* whose SU rise
+  with speed. That is correct for Create's own generators, because a generator owns its speed — a
+  Water Wheel turns at 8 and that is that. It is wrong the moment `matchOrDrive` let this source
+  adopt somebody else's speed: at a fixed 16 SU/RPM, matching a network already running at 192 RPM
+  was worth **3072 SU for exactly the air that buys 1024** on a shaft of your own, so the faster the
+  network you found, the more you were paid for joining it.
+  `PneumaticSourceBlockEntity.calculateAddedStressCapacity` therefore holds the *product* fixed —
+  `wrenchStressUnits / |speed|` — which is both the fix and what an air motor does: one tank rate is
+  one power, and gearing decides whether it arrives as speed or as torque. Half the speed, twice the
+  torque.
+  - It must return **0** below a whisker of speed rather than divide. `capacity × 0` with an infinite
+    capacity is `NaN`, which does not throw — it quietly makes the network's entire capacity NaN and
+    every comparison against it false.
+  - It must keep `lastCapacityProvided` up to date. That field is `protected` in `KineticBlockEntity`
+    and `KineticNetwork.addSilently` reads it back to undo the contribution a source made before its
+    chunk unloaded.
+  - `BlockStressValues.CAPACITIES` is keyed on the **block**, so it cannot see a speed. What
+    `CPTBlocks` registers is the nominal per-RPM figure at the wrench's own RPM — the truth for a
+    still shaft and a placeholder otherwise. The live figure only ever comes from the override.
+  - `aMatchedWrenchIsWorthItsFullTorqueOnASlowNetwork` and `...NoMoreOnAFastOne` differ only in the
+    motor's RPM and must agree; that pair is the regression test, and deleting the override makes them
+    report 256 and 3072 against an expected 1024. `theWrenchOutMusclesAHandCrank` pins the same figure
+    on the free-running path. All three measure the same network twice — with the wrench, then after
+    the lease lapses — so they test capacity reaching Create rather than this mod's arithmetic
+    agreeing with itself.
+- **Two opposed generators still break one of them, and that is Create's behaviour, not a bug here.**
+  Take over an idle network with the wrench and then crank a Hand Crank the other way on it, and the
+  crank is destroyed by `applyNewSpeed` — exactly as it would be against a Creative Motor. The
+  matching above only covers what is *already* turning when the source arrives; nothing can be done
+  about a generator that arrives later and disagrees, short of not being a generator.
 - **The lease is the whole safety argument.** A wrench that *removed* its source on release would
   have to also remove it on: releasing the button, switching hotbar slot, walking out of range,
   dying, disconnecting, changing dimension, the chunk unloading mid-hold, and the client crashing.

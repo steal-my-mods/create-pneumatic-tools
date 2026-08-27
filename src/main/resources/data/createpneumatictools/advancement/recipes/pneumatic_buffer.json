@@ -1,11 +1,11 @@
 {
   "parent": "minecraft:recipes/root",
   "criteria": {
-    "has_sand_paper": {
+    "has_honeycomb_block": {
       "conditions": {
         "items": [
           {
-            "items": "create:sand_paper"
+            "items": "minecraft:honeycomb_block"
           }
         ]
       },
@@ -21,7 +21,7 @@
   "requirements": [
     [
       "has_the_recipe",
-      "has_sand_paper"
+      "has_honeycomb_block"
     ]
   ],
   "rewards": {

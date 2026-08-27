@@ -5,13 +5,13 @@
     "D": {
       "item": "create:mechanical_drill"
     },
-    "W": {
-      "item": "createpneumatictools:pneumatic_wrench"
+    "H": {
+      "item": "createpneumatictools:hand_drill"
     }
   },
   "pattern": [
     "DDD",
-    "DWD",
+    "DHD",
     "DDD"
   ],
   "result": {

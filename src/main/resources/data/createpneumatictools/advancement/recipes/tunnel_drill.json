@@ -1,11 +1,11 @@
 {
   "parent": "minecraft:recipes/root",
   "criteria": {
-    "has_pneumatic_wrench": {
+    "has_hand_drill": {
       "conditions": {
         "items": [
           {
-            "items": "createpneumatictools:pneumatic_wrench"
+            "items": "createpneumatictools:hand_drill"
           }
         ]
       },
@@ -21,7 +21,7 @@
   "requirements": [
     [
       "has_the_recipe",
-      "has_pneumatic_wrench"
+      "has_hand_drill"
     ]
   ],
   "rewards": {

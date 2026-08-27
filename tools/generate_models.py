@@ -213,6 +213,40 @@ def plane_of(axis):
     return {'x': 'yz', 'y': 'xz', 'z': 'xy'}[axis]
 
 
+def placed(elements, offset):
+    """A built shape moved bodily to where it belongs, as (x, y, z)."""
+    moved = []
+    for element in elements:
+        copy = json.loads(json.dumps(element))
+        copy['from'] = [element['from'][i] + offset[i] for i in range(3)]
+        copy['to'] = [element['to'][i] + offset[i] for i in range(3)]
+        moved.append(copy)
+    return moved
+
+
+def clipped(elements, index, low=None, high=None):
+    """
+    A built shape trimmed to a half-space along one axis, dropping whatever falls outside it.
+
+    A guard is a half-disc, not a ring: a shroud that went all the way round would hide the blade it
+    exists to make legible. Trimming a built disc is how a half one gets made here, because a disc is
+    stacked rows and a half-space cut across the rows is one clamp per box -- where writing the boxes
+    of a semicircle out by hand is exactly the arithmetic this file exists to stop anyone doing twice.
+    """
+    kept = []
+    for element in elements:
+        copy = json.loads(json.dumps(element))
+        if low is not None:
+            copy['from'][index] = max(copy['from'][index], low)
+        if high is not None:
+            copy['to'][index] = min(copy['to'][index], high)
+        if copy['to'][index] - copy['from'][index] > 0.001:
+            kept.append(box((copy['from'][0], copy['from'][1], copy['from'][2],
+                             copy['to'][0], copy['to'][1], copy['to'][2]),
+                            element['faces']['north']['texture'].lstrip('#')))
+    return kept
+
+
 def toothed(elements, radius, half_depth, material, tooth=0.5, stickout=0.6):
     """
     Eight teeth around a blade: one box each, poking out past the rim at the compass points and the
@@ -302,6 +336,22 @@ DETAILS = [
 # than they look: a moving part socketed into a ring reads as mounted, and the same part floating off
 # the end of the chuck reads as a bug.
 
+# Where the wheeled tools carry their disc, as (forward along the barrel, across it, up from the
+# middle). These live here as well as in PLACEMENTS because a guard is static geometry laid out around
+# the axis a moving part turns on: two copies of the number would be two things to keep in step, and
+# the guard would drift off the wheel it is guarding.
+
+SAW_MOUNT = (2.0, -4.0, BARREL_UP - 2.0)
+GRINDER_MOUNT = (4.0, -4.0, BARREL_UP)
+BUFFER_MOUNT = (5.5, 0.0, BARREL_UP)
+BORER_MOUNT = (4.2, 0.0, BARREL_UP)
+
+
+def axis_of(mount):
+    """Where a side-mounted wheel's axis sits, in (y, z)."""
+    return (C + mount[0], C + mount[2])
+
+
 HEADS = {
     'hand_drill': [
         ((6.5, 11.5, 9.0, 9.5, 12.5, 12.0), 'gunmetal'),
@@ -322,24 +372,37 @@ HEADS = {
         # a plate that only just covers it shows its corners through the face four times a turn.
         ((2.5, 10.0, 6.0, 13.5, 13.0, 15.0), 'gunmetal'),
     ],
-    # The three wheeled tools carry their disc *beside* the barrel on a stub spindle, the way a
-    # circular saw and an angle grinder both do. Mounted on the centre line the disc's own radius
-    # reaches back through the body, the collar and the trigger, and a wheel that cuts through the
-    # tool it is bolted to is the clipping this arrangement exists to avoid.
+    # A circular saw: the blade hangs *below* the barrel on a bracket, with a hood over the top of it
+    # and a shoe under the nose for the tool to ride on. Slung low rather than mounted on the centre
+    # line because that is where a circular saw's blade is, and because it leaves the room above the
+    # axis that a hood needs -- a blade on the barrel line has its own teeth at z=15.5 and nothing
+    # can be built over them without leaving the item box.
     'pneumatic_saw': [
-        ((6.5, 11.5, 9.0, 10.5, 12.5, 12.0), 'gunmetal'),
-        ((10.5, 10.25, 9.5, 11.65, 11.75, 11.5), 'gunmetal'),   # spindle, out to meet the blade
+        ((5.05, 8.8, 7.6, 5.6, 11.2, 10.5), 'gunmetal'),       # bracket, down from the body
+        ((4.45, 9.4, 7.9, 5.05, 10.6, 9.1), 'gunmetal'),       # arbor, out to the blade
+        ((3.4, 6.4, 14.0, 4.6, 13.9, 14.7), 'gunmetal'),       # hood, clear of the teeth
+        ((5.1, 8.5, 4.6, 10.4, 13.5, 5.2), 'steel'),           # shoe
+        ((6.5, 10.0, 5.2, 7.5, 11.0, 8.0), 'gunmetal'),        # and its post
     ],
+    # An angle grinder: a gearbox head standing proud at the nose, a small thick disc on a stub arbor
+    # at right angles to it, a half guard over the back of the disc, and a side handle out the far
+    # flank. The handle is what makes it unmistakable at sixteen pixels -- it is the one feature no
+    # other tool here has, and it reads from every angle including the icon.
     'pneumatic_grinder': [
-        ((6.5, 11.5, 9.0, 10.5, 12.5, 12.0), 'gunmetal'),
-        ((10.5, 10.5, 9.5, 11.1, 12.0, 11.5), 'gunmetal'),
+        ((5.4, 11.5, 8.6, 9.8, 13.6, 12.4), 'gunmetal'),       # gearbox head
+        ((5.0, 11.7, 9.9, 5.4, 13.0, 11.1), 'gunmetal'),       # arbor
+        ((3.0, 7.95, 9.3, 4.85, 8.6, 11.7), 'gunmetal'),       # guard strap, outside the rim
+        ((10.5, 10.2, 9.9, 13.4, 11.4, 11.1), 'gunmetal'),     # side handle
+        ((13.4, 10.0, 9.7, 13.8, 11.6, 11.3), 'copper'),       # and its cap
     ],
-    'pneumatic_buffer': [
-        ((6.5, 11.5, 9.0, 10.5, 12.5, 12.0), 'gunmetal'),
-        ((10.5, 10.5, 9.5, 11.25, 12.0, 11.5), 'gunmetal'),
-    ],
+    # A rotary polisher: the pad faces *forward* on the barrel's own axis rather than standing up
+    # beside it, which is both what a polisher is and the one arrangement none of the others uses.
+    # The chuck is its housing, so it needs no head of its own -- and must not have one, since any
+    # static box past y=11.5 would stand inside the pad's swept circle.
+    'pneumatic_buffer': [],
     # Filled in below: a trumpet has to be hollow, or the impeller is a moving part nobody can see.
     'pneumatic_vacuum_wand': [],
+    'pneumatic_borer': [],
     'pneumatic_wrench': [
         # Small enough that its corners clear the socket's bore: at half an inch wider the four
         # corners of a square nose poke through the inside of a spinning ring.
@@ -347,16 +410,28 @@ HEADS = {
     ],
 }
 
-# Heads that are built rather than listed. `HEADS` holds plain boxes; anything that needs a helper --
-# so far only the vacuum's flare, which has to be hollow -- is assembled here and merged in by
-# `static_of`. The bore of each course has to clear the impeller's swept circle, which is what sets
-# the inner radii.
+# Heads that are built rather than listed. `HEADS` holds plain boxes; anything that needs a helper is
+# assembled here and merged in by `static_of`: the vacuum's flare, which has to be hollow or its
+# impeller is a moving part nobody can see, and the two blade guards, which are half-discs.
+#
+# Both cheeks sit *inboard* of their wheel rather than around its rim, which is not a compromise: a
+# guard that spans the wheel's own slab has to clear its outermost tooth at every point, and at these
+# radii there is no room left inside the item box for one. A cheek beside the wheel is what a real
+# guard's side plate is anyway, and it can be as large as it likes.
 BORE = (C, C + BARREL_UP)   # where the barrel's bore is, in x and z
 
 BUILT_HEADS = {
     'pneumatic_vacuum_wand': ring('y', 11.5, 13.0, 3.0, 2.0, 'steel', BORE)
                              + ring('y', 13.0, 14.5, 4.0, 3.0, 'steel', BORE)
                              + ring('y', 14.5, 15.5, 5.0, 4.0, 'steel', BORE),
+    # The upper half of a disc a little larger than the blade, laid against its inboard face.
+    'pneumatic_saw': clipped(
+        placed(disc(5.4, 0.35, 'yz', 'gunmetal'), (-3.35, SAW_MOUNT[0], SAW_MOUNT[2])),
+        2, low=axis_of(SAW_MOUNT)[1]),
+    # The rear half of one, which is where an angle grinder's guard sits: between the disc and you.
+    'pneumatic_grinder': clipped(
+        placed(disc(3.6, 0.075, 'yz', 'gunmetal'), (-3.075, GRINDER_MOUNT[0], GRINDER_MOUNT[2])),
+        1, high=axis_of(GRINDER_MOUNT)[0]),
 }
 
 
@@ -376,6 +451,9 @@ def static_of(tool):
 #
 # Authored centred on (8, 8, 8) and lying along +Y, so the renderer can spin one about the barrel with
 # a single rotation and nothing to undo.
+
+# Where the Borer's four cutters sit on its face plate: on the axes, out near the rim.
+BORER_BITS = ((-4.0, 0.0), (4.0, 0.0), (0.0, -4.0), (0.0, 4.0))
 
 PARTS = {
     # A twist bit: shaft, taper, point. Used by the Hand Drill and, three at a time, by the tunneller.
@@ -397,9 +475,25 @@ PARTS = {
         ((7.5, 11.0, 7.5, 8.5, 11.5, 8.5), 'obsidian'),
     ]),
     # Standing up along the barrel, so the cutting edge is at the front where you are pushing it.
-    'blade': toothed(disc(4.0, 0.35, 'yz', 'steel'), 4.0, 0.35, 'steel', stickout=0.5),
-    'wheel': disc(4.0, 0.9, 'yz', 'grit'),
-    'buffing_pad': disc(4.0, 1.25, 'yz', 'pad'),
+    # The three wheels used to be one disc in three colours at one radius; they are now sized the way
+    # the real tools are, which is most of what tells them apart in a hotbar.
+    'blade': toothed(disc(4.5, 0.3, 'yz', 'steel'), 4.5, 0.3, 'steel', stickout=0.5),
+    # Small and thick where the blade is broad and thin. An angle grinder's disc is a puck.
+    'wheel': disc(3.0, 0.85, 'yz', 'grit'),
+    # Across the barrel, not beside it: a polisher's pad faces the work. Its backing plate is part of
+    # the same part, so the two turn together and nothing static has to stand inside the sweep.
+    'buffing_pad': placed(disc(2.5, 0.75, 'xz', 'gunmetal'), (0.0, -1.25, 0.0))
+        + placed(disc(4.0, 1.0, 'xz', 'pad'), (0.0, 0.5, 0.0)),
+    # The borer's whole head turns: a face plate carrying four bits round its rim, which is what a
+    # boring head is and is the one way to make a 5x5 tool that is not the 3x3 one drawn wider.
+    'borer_head': placed(disc(5.0, 0.6, 'xz', 'gunmetal'), (0.0, -0.1, 0.0))
+        # Out near the rim, where a boring head's cutters are -- and set flush against the plate's
+        # face rather than a tenth in front of it, which would z-fight, or a tenth behind, which
+        # would leave four bits floating off the front of a disc.
+        + [box((C + dx - 0.75, 8.5, C + dz - 0.75, C + dx + 0.75, 9.8, C + dz + 0.75), 'steel')
+           for dx, dz in BORER_BITS]
+        + [box((C + dx - 0.4, 9.8, C + dz - 0.4, C + dx + 0.4, 10.4, C + dz + 0.4), 'steel')
+           for dx, dz in BORER_BITS],
     # Across the bore, spinning about the barrel: an impeller you look straight into.
     'impeller': disc(3.0, 0.4, 'xz', 'steel'),
     # A ring, not a block: a socket that is not hollow is a hammer. The flange behind it is what makes
@@ -425,10 +519,14 @@ PLACEMENTS = {
     # from every angle.
     'tunnel_drill': [('bit', 4.0, -3.0, BARREL_UP - 2.0), ('bit', 4.0, 3.0, BARREL_UP - 2.0),
                      ('bit', 4.0, 0.0, BARREL_UP + 2.0)],
-    # Out to the side, clear of the barrel: a wheel on the centre line saws through the tool.
-    'pneumatic_saw': [('blade', 3.0, 4.0, BARREL_UP)],
-    'pneumatic_grinder': [('wheel', 3.0, 4.0, BARREL_UP)],
-    'pneumatic_buffer': [('buffing_pad', 3.0, 4.5, BARREL_UP)],
+    # Out to the side, clear of the barrel: a wheel on the centre line saws through the tool. The
+    # saw's is slung below it as well, which is where a circular saw's blade hangs.
+    'pneumatic_saw': [('blade',) + SAW_MOUNT],
+    'pneumatic_grinder': [('wheel',) + GRINDER_MOUNT],
+    # The one wheel that is not out to the side: it faces forward on the barrel's own axis, past the
+    # end of the chuck, so nothing static stands in its sweep.
+    'pneumatic_buffer': [('buffing_pad',) + BUFFER_MOUNT],
+    'pneumatic_borer': [('borer_head',) + BORER_MOUNT],
     # Right at the mouth, in the widest course of the flare: the only place its swept circle clears
     # the bore, and the only place you can see it turning anyway.
     'pneumatic_vacuum_wand': [('impeller', 7.0, 0.0, BARREL_UP)],
@@ -582,7 +680,10 @@ SPIN = {
     'tunnel_drill': 'y',
     'pneumatic_saw': 'x',
     'pneumatic_grinder': 'x',
-    'pneumatic_buffer': 'x',
+    # About the barrel, not across it. The buffer used to be the third of three identical spindles;
+    # a pad that faces the work turns the other way, and that alone reads as a different tool.
+    'pneumatic_buffer': 'y',
+    'pneumatic_borer': 'y',
     'pneumatic_vacuum_wand': 'y',
     'pneumatic_wrench': 'y',
 }
@@ -769,6 +870,7 @@ TOOL_CONSTANTS = {
     'pneumatic_saw': 'SAW',
     'pneumatic_grinder': 'GRINDER',
     'pneumatic_buffer': 'BUFFER',
+    'pneumatic_borer': 'BORER',
     'pneumatic_vacuum_wand': 'VACUUM_WAND',
     'pneumatic_wrench': 'WRENCH',
 }
