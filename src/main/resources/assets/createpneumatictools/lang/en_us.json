@@ -1,5 +1,6 @@
 {
   "itemGroup.createpneumatictools": "Create: Pneumatic Tools",
+  "block.createpneumatictools.pneumatic_source": "Pneumatic Source",
   "item.createpneumatictools.hand_drill": "Hand Drill",
   "item.createpneumatictools.hand_drill.tooltip.summary": "Cuts through stone and earth at speed. Runs on _Air_ _Pressure_.",
   "item.createpneumatictools.hand_drill.tooltip.condition1": "While wearing a charged Backtank",
@@ -28,7 +29,7 @@
   "item.createpneumatictools.pneumatic_saw.tooltip.summary": "Fells a _whole tree_ from a single cut. Runs on _Air_ _Pressure_.",
   "item.createpneumatictools.pneumatic_saw.tooltip.condition1": "When used on a Log",
   "item.createpneumatictools.pneumatic_saw.tooltip.behaviour1": "Brings down trunk and canopy together, for _one_ _charge_.",
-  "item.createpneumatictools.pneumatic_saw.tooltip.condition2": "On Bamboo, Cane, Cactus and Chorus",
+  "item.createpneumatictools.pneumatic_saw.tooltip.condition2": "On Bamboo, Cane, Cactus, Kelp and Chorus",
   "item.createpneumatictools.pneumatic_saw.tooltip.behaviour2": "Harvests the _whole stalk_.",
   "item.createpneumatictools.pneumatic_grinder": "Pneumatic Grinder",
   "item.createpneumatictools.pneumatic_grinder.tooltip.summary": "A coarse abrasive wheel. Takes _one layer_ off a block. Runs on _Air_ _Pressure_.",

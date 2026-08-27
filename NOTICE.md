@@ -55,8 +55,10 @@ carrying the notice costs nothing:
 ### Art
 
 **No Create art is used.** Create's `assets/` are All Rights Reserved, so the only safe amount to
-copy is none. Every sprite in this mod, and the badge, is generated from scratch by
-`tools/generate_textures.py` and `tools/generate_logo.py`.
+copy is none. Every visual asset in this mod is generated from scratch by this repo's own tooling:
+the tools' geometry and display transforms by `tools/generate_models.py`, the material panels they
+are skinned with by `tools/generate_textures.py`, and the badge by `tools/generate_logo.py`. All
+three are byte-deterministic, and CI regenerates everything and fails on a diff.
 
 What the badge does borrow is a *convention* — the white-ringed azure disc of graph paper that every
 Create addon uses to say "this plugs into Create". A convention is not artwork, and the palette,

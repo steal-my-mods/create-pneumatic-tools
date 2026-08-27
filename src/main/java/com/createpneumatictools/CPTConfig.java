@@ -125,10 +125,14 @@ public class CPTConfig {
 
 		builder.comment("Pneumatic Saw").push("saw");
 		sawUsesPerTank = usesPerTank(builder, "sawUsesPerTank", 60,
-			"Trees a full Copper Backtank will fell. Charged per tree, not per log -- the whole",
-			"canopy comes down for one payment. There is no cap on how big a tree may be, so a giant",
-			"jungle one is a single payment and a single long tick: this is the one tool here with",
-			"no ceiling on the work one click can ask for.");
+			"Cuts a full Copper Backtank will pay for. Charged per *cut*, not per tree actually",
+			"felled: on a tree that is once rather than once per log, and the whole canopy comes down",
+			"for one payment. Only a cut that could start a felling is charged at all -- logs, roots,",
+			"and the stalks (bamboo, cane, cactus, kelp, chorus). Leaves, pumpkins and melons are free,",
+			"because they fell nothing: they are on Create's list for a *mounted* saw, which is not",
+			"billed per cut. There is no cap on how big a tree may be, so a giant jungle one is a",
+			"single payment and a single long tick: this is the one tool here with no ceiling on the",
+			"work one click can ask for.");
 		sawSpeed = builder
 			.comment("Mining speed on anything an axe handles. A Diamond Axe is 8.")
 			.defineInRange("sawSpeed", 9.0, 1.0, 1000.0);

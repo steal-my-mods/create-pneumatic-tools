@@ -12,6 +12,9 @@ is a player hovering over an item.
 The checks, in the order they run:
 
   * every item registered in CPTItems has a display name;
+  * every block registered in CPTBlocks has one too. The source block is invisible and has no shape,
+    so nothing in ordinary play can target it and read the name back -- which makes a missing one
+    completely silent rather than merely quiet;
   * every one of them has a tooltip summary, at least one condition, and a behaviour for each
     condition -- because every one of them is handed to `ItemDescription.Modifier` in CPTTooltips;
   * the creative tab has a title;
@@ -30,6 +33,7 @@ import sys
 NAMESPACE = 'createpneumatictools'
 LANG = 'src/main/resources/assets/%s/lang/en_us.json' % NAMESPACE
 ITEMS = 'src/main/java/com/%s/registry/CPTItems.java' % NAMESPACE
+BLOCKS = 'src/main/java/com/%s/registry/CPTBlocks.java' % NAMESPACE
 TOOLTIPS = 'src/main/java/com/%s/client/CPTTooltips.java' % NAMESPACE
 
 
@@ -39,6 +43,15 @@ def registered_items():
     ids = re.findall(r'ITEMS\.registerItem\(\s*"([^"]+)"', source)
     if not ids:
         raise SystemExit('%s: found no registered items; update this check' % ITEMS)
+    return ids
+
+
+def registered_blocks():
+    """The registry ids in CPTBlocks, read out of the source the same way the items are."""
+    source = open(BLOCKS).read()
+    ids = re.findall(r'BLOCKS\.register\(\s*"([^"]+)"', source)
+    if not ids:
+        raise SystemExit('%s: found no registered blocks; update this check' % BLOCKS)
     return ids
 
 
@@ -64,6 +77,12 @@ def main():
     if not everything_gets_a_create_tooltip():
         raise SystemExit('%s no longer describes every item from CPTItems.all(); this check assumed '
                          'it did, and needs updating' % TOOLTIPS)
+
+    for block in registered_blocks():
+        name = 'block.%s.%s' % (NAMESPACE, block)
+        expected.add(name)
+        if name not in lang:
+            problems.append('%s is missing, so the block has no name' % name)
 
     for item in registered_items():
         name = 'item.%s.%s' % (NAMESPACE, item)

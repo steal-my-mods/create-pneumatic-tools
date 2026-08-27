@@ -12,8 +12,15 @@ import net.minecraft.world.entity.player.Player;
  * Create already states its own equipment in — the Extendo Grip is 1000 actions per tank, the Potato
  * Cannon 200 shots — so the numbers in this mod's config can be read against Create's without
  * converting anything. {@link BacktankUtil#canAbsorbDamage} turns a rating into a cost the same way
- * for all of them: {@code max(airInBacktank / usesPerTank, 1)}, charged against the <em>emptiest</em>
- * tank the player is wearing, so a second backtank is a second tank rather than a spare.
+ * for all of them: {@code max(maxAirWithoutEnchants() / usesPerTank, 1)}.
+ *
+ * <p>That divisor is the capacity of a full <em>unenchanted</em> tank — Create's own
+ * {@code airInBacktank} config — and emphatically not the air left in the tank being spent, so a use
+ * costs the same at 10% as at 100%. It is also why Create's <b>Capacity</b> enchantment is the one
+ * thing that gets a tool past the 900-use ceiling: the price is worked out from
+ * {@code maxAirWithoutEnchants()} while the tank's size comes from {@code maxAir()}, so Capacity III
+ * doubles the air without touching the price. The cost is charged against the <em>emptiest</em> tank
+ * the player is wearing, so a second backtank is a second tank rather than a spare.
  *
  * <p>A rating of zero means free, matching what Create's own config comments promise for
  * {@code maxExtendoGripActions} and {@code maxPotatoCannonShots}: "set to 0 makes them unbreakable".

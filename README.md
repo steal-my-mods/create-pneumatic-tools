@@ -2,7 +2,7 @@
 
 Nine handheld tools that run off a Create backtank.
 
-**Minecraft 1.21.1 · NeoForge 21.1.219+ · Create 6.0+**
+**Minecraft 1.21.1 · NeoForge 21.1.219+ · Create 6.x**
 
 ![The Pneumatic Saw in hand, with the other eight tools on the hotbar](branding/tools-in-hand.png)
 
@@ -16,10 +16,12 @@ Nothing here is a new mechanic. Every tool spends air through Create's own `Back
 "uses per tank" rating in the same unit Create rates its own equipment in.
 
 Every tool is a **3D model with a part that moves** — a pistol-grip body with the working end
-pointing where you are aiming it. Bits, impellers and sockets turn on the barrel, blades and wheels
-spin on a spindle across it, and the jackhammer's chisel recoils and strikes. They idle while you
-carry them, spool up when you put them to work, and stop when the tank runs dry, so an empty
-backtank is something you see in your hand before you swing at anything.
+pointing where you are aiming it. Bits, impellers and sockets turn on the barrel; the saw's blade and
+the grinder's disc spin on a spindle out on the left flank, where you can watch them work; the buffer's
+pad faces forward and turns on the barrel's own axis; the borer's whole face plate turns with its
+cutters; and the jackhammer's chisel recoils and strikes. They idle while you carry them, spool up when
+you put them to work, and stop when the tank runs dry, so an empty backtank is something you see in
+your hand before you swing at anything.
 
 ![All nine tools on a hotbar](branding/the-nine-tools.png)
 
@@ -32,10 +34,15 @@ backtank is something you see in your hand before you swing at anything.
 | Tool | What it does | Per tank |
 |---|---|---|
 | **Hand Drill** | A Mechanical Drill you can carry. Quick on anything a pickaxe or a shovel handles. | 900 blocks |
-| **Pneumatic Jackhammer** | Shatters hard blocks in a fixed quarter-second — Obsidian and Deepslate take the same moment. Netherite tier. Slow and **free** on anything soft. | 90 hard blocks |
+| **Pneumatic Jackhammer** | Shatters hard blocks in a fixed quarter-second — Obsidian and Deepslate take the same moment. Slow and **free** on anything soft. | 90 hard blocks |
 | **Tunnelling Drill** | Clears a 3x3 slice lying flat against the face you drilled — a wall if you drilled a wall, a trench if you drilled the floor. Charged once per burst, however many of the nine blocks were there. | 100 bursts |
 | **Pneumatic Borer** | The same burst five blocks across instead of three — twenty-five at a time. Wider and slower, out of half as many bursts a tank. Built in a Mechanical Crafter. | 50 bursts |
-| **Pneumatic Saw** | Fells a whole tree from one log, canopy and all. Bamboo, cane, cactus and chorus too. | 60 trees |
+| **Pneumatic Saw** | Fells a whole tree from one log, canopy and all. Bamboo, cane, cactus, kelp and chorus too. | 60 cuts |
+
+Tier is never the limit. The diggers are diamond and the Jackhammer netherite, which in 1.21 come to
+the same thing: the highest gate vanilla has is `needs_diamond_tool` — Obsidian, Crying Obsidian,
+Ancient Debris, Netherite Blocks, Respawn Anchors — and a diamond tool clears all of it. So everything
+these five break, they drop, twenty-five blocks of Ancient Debris in a Borer burst included.
 
 ### Surface treatment
 
@@ -49,7 +56,7 @@ backtank is something you see in your hand before you swing at anything.
 | Tool | What it does | Per tank |
 |---|---|---|
 | **Pneumatic Vacuum Wand** | Hold Right-Click and loose items and experience come to you from eight blocks out. A pulse with nothing in range is free. | 900 pulses |
-| **Pneumatic Wrench** | Portable torque. Hold it against a still shaft and it drives the network at 64 RPM with 1024 SU behind it — twice a Hand Crank's speed and four times its torque. Held against a network already turning, it matches that network's speed and direction and lends the same 1024 SU. | 450 pulses |
+| **Pneumatic Wrench** | Portable torque. Hold it against a still shaft and it drives the network at 64 RPM with 1024 SU behind it — twice a Hand Crank's speed and four times its output. Held against a network already turning, it matches that network's speed and direction and lends the same 1024 SU. | 450 pulses |
 
 ---
 
@@ -61,14 +68,22 @@ not the tool's.
 
 Costs are stated as **uses per tank**, which is the unit Create already uses for the Extendo Grip
 (1000 actions) and the Potato Cannon (200 shots), so these numbers can be read straight against
-Create's own. A rating becomes a cost the way Create's does: `max(airInBacktank / usesPerTank, 1)`, charged
-against the *emptiest* tank you are wearing — so a second backtank is a second tank, not a spare.
+Create's own. A rating becomes a cost the way Create's does: `max(tankCapacity / usesPerTank, 1)`,
+where the capacity is Create's own `airInBacktank` config — a full *unenchanted* tank, not however much
+air happens to be left in the one on your back, so a use costs the same at 10% as at 100%. That cost is
+charged against the *emptiest* tank you are wearing, so a second backtank is a second tank, not a spare.
 
 Two tools charge only for what they are for, which is deliberate rather than an oversight:
 
 - The **Jackhammer** charges nothing on a soft block, and gives no speed there either. The air is
   what does the shattering.
-- The **Saw** charges per *tree*, not per log. Chopping a plank is free.
+- The **Saw** charges per *cut*, and only for a cut that could start a felling. On a tree that means
+  once rather than once per log — the whole canopy comes down for one payment. Charging instead for a
+  felling that actually found something looks fairer and is a hole: a tree taken down from the top is
+  a run of cuts that each fell nothing, so the whole thing would come down for no air at all. So the
+  price is decided by what you cut into rather than by what fell: logs (mushroom stems and mangrove
+  roots among them) and the stalks — bamboo, cane, cactus, kelp and chorus. Everything else is free,
+  leaves and pumpkins and planks alike, and there the saw is simply a fast axe.
 
 The **Wrench** is the odd one out and worth explaining. Create's rotation is a graph of block
 entities, so a source of it has to *be somewhere* — an item in a hand cannot join a kinetic network.
@@ -95,11 +110,12 @@ shaft of your own.
 Everything is configurable in `config/createpneumatictools-server.toml`, including the jackhammer's
 break time in ticks and the vacuum's radius. One knob there is off by default and worth knowing about:
 `jackhammerHardnessBias` tilts the jackhammer so that harder blocks break *faster* rather than merely
-taking the same time — at 0.5, Obsidian goes about four times quicker than Deepslate. Set any tool's rating to **0** and it becomes free and
-needs no backtank at all. Raising one past **900** does nothing, though: a use cannot cost less than
-one air unit, so 900 is the most a tank can give however large the number. What *does* go past it is
-Create's **Capacity** enchantment on the backtank — the cost per use is worked out from an unenchanted
-tank, so Capacity III doubles the air without touching the price and every tool gets twice the uses.
+taking the same time — at 0.5, Obsidian goes about four times quicker than Deepslate. Set any tool's
+rating to **0** and it becomes free and needs no backtank at all. Raising one past **900** does
+nothing, though: a use cannot cost less than one air unit, so 900 is the most a tank can give however
+large the number. What *does* go past it is Create's **Capacity** enchantment on the backtank — the
+cost per use is worked out from an unenchanted tank, so Capacity III doubles the air without touching
+the price and every tool gets twice the uses.
 
 ## Enchantments
 
@@ -136,7 +152,7 @@ default:
 | | `tunnelDrillSpeed` | 7.0 | Mining speed per block. Lower than the Hand Drill's |
 | `borer` | `borerUsesPerTank` | 50 | 5x5 bursts a tank will fire, charged once each |
 | | `borerSpeed` | 5.0 | Mining speed per block. Lower again |
-| `saw` | `sawUsesPerTank` | 60 | Trees a tank will fell, charged per tree rather than per log |
+| `saw` | `sawUsesPerTank` | 60 | Cuts a tank will pay for. A whole tree is one cut; leaves and produce are free |
 | | `sawSpeed` | 9.0 | Mining speed on axe blocks. A Diamond Axe is 8 |
 | `grinder` | `grinderUsesPerTank` | 300 | Surfaces a tank will strip, scrape or unwax |
 | `buffer` | `bufferUsesPerTank` | 300 | Blocks a tank will seal |
@@ -220,7 +236,7 @@ recipe book — none of Create's own are either — so look for it in JEI or EMI
 `runClient` loads **JEI** too, so the recipes are browsable in dev. It is a dev-run dependency only —
 not on the compile classpath, not in the jar, and not in the published metadata.
 
-JDK 21. Art and the GameTest template are generated:
+JDK 21. The art and the GameTest template are generated, and two checks guard the docs:
 
 ```bash
 python3 tools/generate_models.py       # every 3D model: chassis, heads, moving parts
@@ -228,31 +244,20 @@ python3 tools/generate_textures.py     # the eight material panels
 python3 tools/generate_logo.py         # the in-jar badge at 256
 python3 tools/generate_logo.py branding/icon-512.png --size 512
 python3 tools/generate_structures.py   # the empty GameTest template
-python3 tools/check_lang.py            # every tooltip key resolves
+python3 tools/generate_recipe_advancements.py  # one per recipe, or nothing reaches the recipe book
+python3 tools/check_lang.py            # every name and tooltip key resolves, and nothing is orphaned
+python3 tools/check_config_docs.py     # every config option is documented above, both ways
 ```
+
+Every one of those runs in CI, which fails on a diff — so a recipe added without its advancement, or
+an option added without a row in the Configuration table, fails the build rather than shipping.
 
 See [CLAUDE.md](CLAUDE.md) for how the repo is put together and the things that will bite you.
 
 ---
 
-## What is not here
-
-Three tools from the original list are not built, each with a write-up in `docs/` explaining why and
-what it would take:
-
-- **Pneumatic Track Trolley** (`docs/rail-rider.md`) — buildable on Create's own `TravellingPoint`,
-  which follows curves and takes junctions from a look vector. What is unsettled is moving a player
-  smoothly, and what to do about Trains already using the track.
-- **Pneumatic Stilts** (`docs/pneumatic-stilts.md`) — **dropped**, not deferred. The engineering
-  came good — a leased platform under your feet, the wrench's self-deleting trick again — but any
-  version of it puts a hidden, temporary, walkable floor in a shared world, and everything standing
-  on yours falls when you walk away.
-- **The wrench as a portable generator** (`docs/wrench-as-a-generator.md`) — Create's rotation is a
-  graph of block entities, so a source of it has to be somewhere. The wrench that shipped puts a
-  leased, invisible generator against the face you aim at, and keeps renewing it while you hold the
-  button.
-
 ## Licence
 
-MIT — see [LICENSE](LICENSE). Third-party notices are in [NOTICE.md](NOTICE.md). No Create art is
-used or derived from; every sprite here is generated by this repo's own tooling.
+MIT — see [LICENSE](LICENSE). Third-party notices are in [NOTICE.md](NOTICE.md). No Create art is used
+or derived from: the models, the material textures and the badge are all generated from scratch by this
+repo's own tooling.

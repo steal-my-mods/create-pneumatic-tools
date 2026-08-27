@@ -18,7 +18,7 @@ python3 tools/generate_logo.py         # the in-jar badge at 256
 python3 tools/generate_logo.py branding/icon-512.png --size 512   # ...and the 512 CurseForge wants
 python3 tools/generate_structures.py   # the empty GameTest template
 python3 tools/generate_recipe_advancements.py  # one per recipe, or nothing reaches the recipe book
-python3 tools/check_lang.py            # every tooltip key resolves, and nothing is orphaned
+python3 tools/check_lang.py            # every item, block and tooltip key resolves; nothing orphaned
 python3 tools/check_config_docs.py     # every config option is documented in the README, both ways
 ```
 
@@ -110,9 +110,12 @@ config can be read against Create's without converting anything, and
     level.
 - **Haste, Mining Fatigue, the water penalty and the airborne `/5` all land *before* the event.**
   `EventHooks.getBreakSpeed` is the last line of `Player.getDigSpeed`, so `getOriginalSpeed()` already
-  has all of them in it and the config multiplier compounds with them. A beacon is therefore worth
-  x1.4, or x1.6 at Haste II, on top of the air — including on the jackhammer, whose "five ticks" is
-  the time on a bare player rather than a floor. The config comment says so.
+  has all of them in it and the config multiplier compounds with them. The Haste term is
+  `1 + (amplifier + 1) * 0.2`, so a beacon is worth **x1.2** at the Haste I its primary power gives and
+  **x1.4** at the Haste II it reaches with a second slot of Haste — on top of the air, and including on
+  the jackhammer, whose "five ticks" is the time on a bare player rather than a floor. The config
+  comment says so. (This read x1.4/x1.6 until an audit checked it against `Player.getDigSpeed`: those
+  are the figures for Haste II and Haste III, and no beacon reaches the second one.)
 - **Vanilla's spawn protection and world border only ever guard the block named in the packet.**
   Both are checked in `ServerGamePacketListenerImpl`, against the position the client sent, so they
   cover the block a player actually swung at and nothing else. Every extra block the tunneller and
@@ -136,6 +139,29 @@ config can be read against Create's without converting anything, and
   tree for nothing — `TreeCutter.validateCut` does refuse a log with more log underneath, but not in
   that geometry: a three-log column cut in the middle still fells the log above it, which is what
   the test showed.
+  - **A "cut" is deliberately narrower than `SawBlockEntity.isSawable`, and `PneumaticSawItem.fells`
+    is the difference.** Create's predicate is the contract for what a *mounted* saw processes, and it
+    includes **leaves, pumpkins and melons** — right for a saw on a contraption, which meets those as
+    it sweeps past and is not billed for them, and wrong for a tool charged per cut, where each was a
+    full use (15 air, a sixtieth of a tank) for breaking one block and felling nothing. Leaves were the
+    sharpest case, since they come down *free* inside a felling through the cascade guard, so a leaf
+    broken on its own was the highest price the tool charged for the least work it did. `fells()` is
+    `isLog || isRoot || isVerticalPlant || ChorusPlantBlock || canDynamicTreeCutFrom` — exactly
+    `isSawable` minus those three. Below it the saw is a fast axe, which is what it already was on
+    planks. Both the charge and the cascade use it, so the invariant "a cascade is always paid for"
+    still holds.
+    - It stays a test of the block's **type** and must never become a test of what the search found —
+      see the paragraph above for why an outcome-based charge hands a whole tree away for nothing.
+    - `ChorusPlantBlock` directly rather than Create's `TreeCutter.isChorus`, which also matches a
+      chorus *flower*. A flower is not in `isSawable`, so reaching for `isChorus` would widen what this
+      tool touches at the very moment of narrowing it.
+    - Two tests bracket the predicate and each kills a different mutation.
+      `theSawChargesNothingForLeavesOrProduce` reports 15 air on a leaf if `fells` is put back to
+      `isSawable`; `theSawStillChargesForAStalk` reports 0 air on bamboo if it is over-narrowed to
+      `isLog` alone — which is the plausible simplification, and the one that would silently break the
+      promise the tooltip makes about Bamboo, Cane, Cactus and Kelp, none of which is a log.
+    - `theSawFellsTheWholeTree` plants a canopy for the same reason: "leaves are not a felling *entry
+      point*" and "leaves do not come down *as part of* a felling" are one edit apart.
 - **The wrench finds its source through the chunks' block entities, not by reading block states.**
   `PneumaticWrenchItem.driving` runs every tick the button is held, on the client as well as the
   server. Sweeping `BlockPos.betweenClosed` over the reach is `(2r+1)^3` palette lookups a tick —
@@ -221,6 +247,23 @@ config can be read against Create's without converting anything, and
   `BACKTANK_AIR` component directly and never calls `ItemStack.hurt`, so neither can see it. A
   Netherite backtank holds no more air than a Copper one either — `maxAir` reads the config and the
   enchantment, never the item.
+- **`minecraft:incorrect_for_diamond_tool` is empty, so "diamond tier" is not a limit on anything.**
+  Vanilla's tier tags in 1.21 are phrased as exclusions, and both `incorrect_for_diamond_tool` and
+  `incorrect_for_netherite_tool` are `{"values": []}`. The highest gate that exists is
+  `needs_diamond_tool` — Obsidian, Crying Obsidian, Ancient Debris, Netherite Block, Respawn Anchor —
+  and a *diamond* tool clears it; netherite adds nothing harvestable over diamond. So the four diamond
+  diggers drop Ancient Debris exactly as the netherite Jackhammer does, and
+  `PneumaticBorerItem`'s note that a higher tier "would only add a speed multiplier this mod does not
+  read" is right.
+  - This is easy to get exactly backwards, because "netherite tier" sounds like it must unlock
+    something and the tag that would say so is named for what it *forbids*. An audit put a paragraph in
+    the README claiming the Jackhammer was the only one of the five that would drop Ancient Debris; it
+    was wrong, and nothing in the suite contradicted it. `diamondTierReachesAncientDebris` now does,
+    with a Hand Drill and a 5x5 Borer burst.
+  - The guard it looks like it should trip is real and simply has no vanilla case:
+    `BurstDiggerItem.breakIfWorthIt` does refuse a neighbour the held stack could not drop, which is
+    correct for a modded block above diamond and fires on nothing in vanilla with these tools. Keep the
+    guard; do not infer a tier limit from its existence.
 - **The five diggers can be enchanted, but only at an anvil.** They are in
   `#minecraft:enchantable/mining_loot`, so Fortune and Silk Touch apply and are worth having — those
   two are the *only* vanilla enchantments whose `supported_items` is that tag, and no vanilla tag
@@ -234,6 +277,16 @@ config can be read against Create's without converting anything, and
   *table* refuses all nine regardless — `Item.isEnchantable` requires a `MAX_DAMAGE` component and
   these have no durability — which is the correct answer for a tool that runs on air, and the same
   answer Create's own Extendo Grip gives.
+- **A burst's extra blocks are dropped down a different path from the one swung at, and both need
+  covering.** The centre block goes through vanilla's own break path, which plainly has the held
+  stack; the twenty-four around it go through `Excavation.breakAs` handing the tool to Create's
+  `BlockHelper.destroyBlockAs`, which passes it to `Block.getDrops`. Only the first was tested for a
+  long time, while the README promised the second ("a Silk Touch Borer takes twenty-five intact
+  blocks at once"). `aSilkTouchedBurstDropsEveryBlockIntact` covers it, and asserts *no Cobblestone
+  anywhere* rather than counting Stone — that is the shape of the failure, one silk-touched block in
+  the middle of twenty-four ordinary ones, which a test looking only for Stone would pass on.
+  Mutation-checked by passing `ItemStack.EMPTY` to `destroyBlockAs`, which kills this test and no
+  other.
 - **`mine()` in the tests is `ServerPlayerGameMode.destroyBlock`, not `Level.destroyBlock`.** The
   latter drops with `ItemStack.EMPTY` as the tool, so the loot table never sees the enchantments or
   the tier. Nothing noticed until a Silk Touch drill was asked for Stone and produced Cobblestone.
@@ -698,6 +751,16 @@ Releases go out through `publishMods` (`me.modmuss50.mod-publish-plugin`), drive
   heading names the current `mod_version` and fails if there isn't one — a missing entry should stop
   a release rather than ship the previous version's notes under a new number. It is wired as a lazy
   provider so an ordinary `./gradlew build` never trips over it.
+  - **It matches on the heading, not on position, so a stale section is worse than a missing one.**
+    `0.1.0` sat under a `## 0.1.0` heading describing an earlier eight-tool state while everything
+    that had happened since sat under `## Unreleased`, and `./gradlew publishMods -PdryRun=true`
+    duly announced "First release. Eight handheld tools" — with no error, because the lookup found
+    exactly what it was told to find. **Rehearse with `-PdryRun=true` and read the `Changelog:` line
+    it prints** before every release; it is the only thing that checks the notes describe the jar.
+  - **A first release's section describes what ships, not how it was built.** `0.1.0` is written as
+    an account of the nine tools, not as a diff — there was no previous release for the Buffer to
+    have stopped polishing Rose Quartz *against*, so entries of that shape belong in the commit log
+    and nowhere else. From `0.2.0` on, a section is a diff against the version before it.
 - **The CurseForge token is checked with curl before anything is built.** `publishMods` uploads to two
   sites, and a missing or expired token fails at *upload* — by which point GitHub may already have
   accepted the release, leaving a version published on one site and not the other, with no way to

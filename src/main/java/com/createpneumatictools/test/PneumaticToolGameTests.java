@@ -270,6 +270,84 @@ public class PneumaticToolGameTests {
 	}
 
 	/**
+	 * Diamond tier is not a limit on anything, and the docs must not claim it is.
+	 *
+	 * <p>{@code minecraft:incorrect_for_diamond_tool} is <b>empty</b> in 1.21, and so is
+	 * {@code incorrect_for_netherite_tool}: the highest tier gate vanilla actually has is
+	 * {@code needs_diamond_tool} — Obsidian, Crying Obsidian, Ancient Debris, Netherite Block,
+	 * Respawn Anchor — and a diamond tool clears it. Netherite adds nothing a diamond tool cannot
+	 * already harvest, which is why {@link com.createpneumatictools.item.PneumaticBorerItem} says a
+	 * higher tier would only buy a speed multiplier this mod does not read.
+	 *
+	 * <p>Worth a test rather than a comment because it is easy to get backwards — the README briefly
+	 * claimed the Jackhammer was the only one of the five that would drop Ancient Debris — and because
+	 * {@code BurstDiggerItem.breakIfWorthIt} really does refuse a block it cannot drop. That guard is
+	 * correct and has no vanilla case to fire on with these tools, so nothing but this would notice if
+	 * a tier were tightened and the bursts quietly started cutting around the Nether's best block.
+	 */
+	@GameTest(template = "workshop")
+	public static void diamondTierReachesAncientDebris(GameTestHelper helper) {
+		Player driller = worker(helper, CPTItems.HAND_DRILL.get());
+		BlockPos one = SITE.above(3);
+		helper.setBlock(one, Blocks.ANCIENT_DEBRIS);
+
+		mine(helper, driller, one);
+
+		helper.assertItemEntityPresent(Items.ANCIENT_DEBRIS, one, 2.0);
+
+		// And a burst takes the ones around it too, rather than leaving them standing.
+		Player borer = worker(helper, CPTItems.BORER.get());
+		BlockPos centre = SITE.above(2)
+			.north(2);
+		buildWall(helper, centre, 2);
+		for (int x = -2; x <= 2; x++)
+			for (int y = -2; y <= 2; y++)
+				helper.setBlock(centre.offset(x, y, 0), Blocks.ANCIENT_DEBRIS);
+		lookAt(borer, Direction.NORTH);
+
+		mine(helper, borer, centre);
+
+		for (int x = -2; x <= 2; x++)
+			for (int y = -2; y <= 2; y++)
+				helper.assertBlockNotPresent(Blocks.ANCIENT_DEBRIS, centre.offset(x, y, 0));
+		helper.succeed();
+	}
+
+	/**
+	 * A burst's <em>extra</em> blocks are dropped by the enchanted tool too, not just the one swung at.
+	 *
+	 * <p>This is a separate question from {@link #aSilkTouchedDrillDropsWhatItBreaks}, and the one the
+	 * README makes a promise about: the centre block is dropped by vanilla's own break path, which
+	 * obviously has the held stack, while the twenty-four around it are dropped by
+	 * {@code Excavation.breakAs} handing the tool to Create's {@code BlockHelper.destroyBlockAs}. Those
+	 * are different code paths and only one of them was covered.
+	 *
+	 * <p>Asserted as "no Cobblestone anywhere" rather than by counting Stone, because that is the shape
+	 * of the failure: a break path that dropped the neighbours with {@code ItemStack.EMPTY} would leave
+	 * one silk-touched Stone in the middle of twenty-four Cobblestone, and a test that only looked for
+	 * Stone would pass on it. Fortune rides the same argument through the same call.
+	 */
+	@GameTest(template = "workshop")
+	public static void aSilkTouchedBurstDropsEveryBlockIntact(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.BORER.get());
+		Holder<Enchantment> silkTouch = enchantment(helper, Enchantments.SILK_TOUCH);
+		player.getMainHandItem()
+			.enchant(silkTouch, 1);
+		BlockPos centre = SITE.above(2)
+			.north(2);
+		buildWall(helper, centre, 3);
+		lookAt(player, Direction.NORTH);
+
+		mine(helper, player, centre);
+
+		// The corner of the 5x5, at 2.83 blocks, is far enough from the middle that the centre block's
+		// own drop cannot be mistaken for it -- so this says a block the *burst* took came up intact.
+		helper.assertItemEntityPresent(Items.STONE, centre.offset(2, 2, 0), 1.0);
+		helper.assertItemEntityNotPresent(Items.COBBLESTONE, centre, 5.0);
+		helper.succeed();
+	}
+
+	/**
 	 * Every digger takes Fortune and Silk Touch, nothing else takes anything, and no tool goes on an
 	 * enchanting table.
 	 *
@@ -560,11 +638,21 @@ public class PneumaticToolGameTests {
 		BlockPos root = SITE.above();
 		for (int i = 0; i < 5; i++)
 			helper.setBlock(root.above(i), Blocks.OAK_LOG);
+		// A canopy, and not for realism: leaves are no longer a block the saw will *start* a felling
+		// from, so this is the assertion that the narrowing did not also stop them coming down as
+		// part of one. They arrive through the cascade guard, which is a different path.
+		BlockPos crown = root.above(4);
+		helper.setBlock(crown.above(), Blocks.OAK_LEAVES);
+		helper.setBlock(crown.north(), Blocks.OAK_LEAVES);
+		helper.setBlock(crown.east(), Blocks.OAK_LEAVES);
 
 		mine(helper, player, root);
 
 		for (int i = 1; i < 5; i++)
 			helper.assertBlockNotPresent(Blocks.OAK_LOG, root.above(i));
+		helper.assertBlockNotPresent(Blocks.OAK_LEAVES, crown.above());
+		helper.assertBlockNotPresent(Blocks.OAK_LEAVES, crown.north());
+		helper.assertBlockNotPresent(Blocks.OAK_LEAVES, crown.east());
 		helper.succeed();
 	}
 
@@ -583,6 +671,68 @@ public class PneumaticToolGameTests {
 		if (spent != expected)
 			throw new GameTestAssertException("felling a five-log tree spent " + spent + " air, "
 				+ "expected " + expected + " -- every log is billing the tank");
+		helper.succeed();
+	}
+
+	/**
+	 * A cut that could never fell anything is free.
+	 *
+	 * <p>These three are in Create's {@code SawBlockEntity.isSawable} — the contract for what a
+	 * <em>mounted</em> saw processes — and were therefore charged a full use each, a sixtieth of a tank,
+	 * for breaking one block and felling nothing. Leaves were the sharpest case: they come down free
+	 * inside a felling, so paying for one broken on its own was the tool's highest price for its least
+	 * work. {@code PneumaticSawItem.fells} is the narrower predicate that fixes it.
+	 *
+	 * <p>Each block is asserted gone as well as free, or the test would pass just as happily on a saw
+	 * that had stopped breaking them at all.
+	 */
+	@GameTest(template = "workshop")
+	public static void theSawChargesNothingForLeavesOrProduce(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.SAW.get());
+		Block[] freeToCut = {Blocks.OAK_LEAVES, Blocks.PUMPKIN, Blocks.MELON};
+
+		for (Block block : freeToCut) {
+			BlockPos at = SITE.above();
+			helper.setBlock(at, block);
+			int before = air(player);
+
+			mine(helper, player, at);
+
+			if (air(player) != before)
+				throw new GameTestAssertException("breaking " + block.getName()
+					.getString() + " cost the saw " + (before - air(player))
+					+ " air -- it fells nothing, so it should be free");
+			helper.assertBlockNotPresent(block, at);
+		}
+		helper.succeed();
+	}
+
+	/**
+	 * ...but a stalk still is a harvest, and still costs one.
+	 *
+	 * <p>The other half of {@link #theSawChargesNothingForLeavesOrProduce}: narrowing the predicate to
+	 * {@code isLog} alone would pass that test and quietly break the promise the tooltip makes about
+	 * Bamboo, Cane, Cactus and Kelp, none of which is a log. Bamboo stands in for the four.
+	 */
+	@GameTest(template = "workshop")
+	public static void theSawStillChargesForAStalk(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.SAW.get());
+		BlockPos base = SITE.above()
+			.north(2);
+		for (int i = 0; i < 3; i++)
+			helper.setBlock(base.above(i), Blocks.BAMBOO);
+
+		int before = air(player);
+		mine(helper, player, base);
+
+		int spent = before - air(player);
+		int expected = costOf(CPTConfig.sawUsesPerTank());
+		if (spent != expected)
+			throw new GameTestAssertException("cutting a bamboo stalk spent " + spent + " air, expected "
+				+ expected + " -- a vertical plant is a harvest and is charged for one");
+		// And the stalk above the cut came down, which is what the charge bought.
+		helper.assertBlockNotPresent(Blocks.BAMBOO, base.above(1));
+		helper.assertBlockNotPresent(Blocks.BAMBOO, base.above(2));
 		helper.succeed();
 	}
 
