@@ -9,13 +9,16 @@ convention is not artwork. Nothing here is copied from Create: the palette, the 
 the grid are the ones the sibling addons in this family already use, so the badges sit together on
 a mods list, and the subject is drawn from scratch.
 
-The subject is a pneumatic rock drill: a D-handle you hold in two hands, a brass body with a copper
-air line coming out of its flank, a gunmetal chuck and a steel bit tapering to a point. A tool with
-a hose attached to it is what "pneumatic" looks like wherever it is drawn, which is why it reads
-without a caption -- and the point at the bottom is what stops it being mistaken for the sibling
-badge's gas cylinder at thumbnail size.
+The subject is the Pneumatic Wrench, the tool in this mod that most needs a picture: a brass barrel
+with a steel socket on the nose, a pistol grip under it behind a trigger guard, and a copper air
+line off the base of the grip. A tool with a hose attached to it is what "pneumatic" looks like
+wherever it is drawn, which is why it reads without a caption -- and the pistol grip is what stops
+it being mistaken for the sibling badge's gas cylinder at thumbnail size.
 
-It is drawn in pixels on a 16x20 grid and blown up by a whole number, so it is Minecraft-shaped
+It is drawn as a three-quarter view rather than a side elevation, so it has the same depth on the
+mods list that the tool has in your hand.
+
+It is drawn in pixels on an 18x18 grid and blown up by a whole number, so it is Minecraft-shaped
 rather than a smooth vector illustration. Everything else is described once at a 256px reference
 and scaled by a whole factor, so `--size 512` is the same badge larger rather than a different one.
 Sizes must be multiples of 256.
@@ -76,7 +79,7 @@ GEOMETRY = {
     'RING': 9.0,               # white ring thickness
     'GRID_SPACING': 46.0,
     'GRID_HALF_WIDTH': 2.5,
-    'SPRITE_SCALE': 9,         # whole number, so subject pixels stay square
+    'SPRITE_SCALE': 9,        # whole number, so subject pixels stay square
     'STROKE': 6.0,             # white outline thickness
     'SHADOW_DX': 6.0,
     'SHADOW_DY': 8.0,
@@ -102,7 +105,7 @@ def lerp(a, b, t):
 
 # --- the subject ---------------------------------------------------------------
 
-SPRITE_W, SPRITE_H = 16, 22
+SPRITE_W, SPRITE_H = 18, 18
 
 PALETTE = {
     '.': None,
@@ -127,50 +130,55 @@ PALETTE = {
 # above -- see tools/generate_textures.py for why a picture beats a procedure for something whose
 # only job is to be recognised in one glance.
 #
-# Three things about this drawing are load-bearing, and each was arrived at by drawing the
+# It is a three-quarter view in cabinet projection: every box shows its front face, and the two
+# faces the eye would see behind it are extruded up and to the right by two cells -- the top in the
+# material's light tone, the right end in its dark one. That convention is the entire depth cue.
+# There is no shading model here, only three tones per material, so a face painted in the wrong one
+# of the three flattens its box back into a rectangle.
+#
+# Four things about this drawing are load-bearing, and each was arrived at by drawing the
 # alternative:
 #
-#   * The handle is open. A solid bar across the top of a cylinder is a lid, and a cylinder with a
-#     lid on it is the sibling badge's pressure vessel. Two courses of daylight under the crossbar
-#     are the whole difference between a tank and a thing you hold -- and they only survive because
-#     outside_cells() below can tell a hole from the outside. Fill that in and the badge reverts to
-#     a jar.
-#   * The drawing steps in and out four times on the way down -- handle, wider shoulder, body,
-#     wider chuck flange, then six courses of bit narrowing to a point. Draw the handle and the body
-#     at the same width and the silhouette is a padlock, which is what the first three drafts were;
-#     the taper is what makes it a tool, and it needs the bit to be a third of the height to land.
-#   * The air line leaves the flank, not the base. Under the tool it would vanish behind the white
-#     stroke; out to the side it is the only part of the drawing that breaks the outline, and an
-#     outline with one thing sticking out of it is far easier to read than a symmetrical one.
+#   * The depth is worth having. A flat elevation was drawn first and is legible, but Create gives
+#     every one of its own 3D-rendered items a `gui` rotation on all three axes, so a flat badge
+#     among them reads as the one that forgot to have depth -- the same argument gui_view() makes
+#     about the item icons in tools/generate_models.py.
+#   * The head is bright steel and the grip is dark andesite. Drawn in neighbouring greys, which is
+#     what they are in the model, the two merge into a single shape at thumbnail size, which is
+#     where a badge does most of its work. The palette here is picked for contrast, not accuracy.
+#   * The trigger guard is open. Two cells of daylight between the grip and the guard are what make
+#     the shape a tool you hold rather than a bracket, and they only survive because outside_cells()
+#     below can tell an enclosed hole from the outside. Fill it in and the silhouette is an L, which
+#     is a pipe fitting. The hole is 2 wide and 3 tall on purpose: the white stroke eats into it
+#     from both sides, and anything narrower closes up at 256px.
+#   * The air line leaves the base of the grip, not the back of the barrel. That is where a real air
+#     tool takes its supply, and out to the side it is the only part of the drawing that breaks the
+#     outline -- an outline with one thing sticking out of it is far easier to read than a
+#     symmetrical one.
 
 SPRITE = """
-....zaAAAAaz....
-....zaAAAAaz....
-....zA....Az....
-....zA....Az....
-....zA....Az....
-..dbaaaaaaaabd..
-...dBBbbbdddD...
-...dBBbbbdddD...
-.ecdBBbbbdddD...
-.cCdBBbbbdddD...
-.ecdBBbbbdddD...
-...dBBbbbdddD...
-...dBBbbbdddD...
-..dggGGGGGGggd..
-...ggGGGGGGgg...
-.....gGGGGg.....
-.....sStSSs.....
-.....sStSSs.....
-......StSS......
-......StSS......
-.......SS.......
-.......Ss.......
+..................
+..................
+...............SSS
+....BBBBBBBBBBSSSs
+...BBBBBBBBBBSSSss
+..bbbbbbbbbbbSSSgs
+..bbbbbbbbbbbSgggs
+..bbbbbbbbbbbSgggs
+..bbbbbbbbbbbSgggs
+..bbbbbbbbbbbSggss
+..DDDDDDDDDDDSSSs.
+...azzzz..za.SSS..
+...azzzz..za......
+.ceazzzz..za......
+.cCazzzzzzzz......
+.ceazzzz..........
+...azzzz..........
+..................
 """
 
-
 def subject_sprite():
-    """The drill, as (width, height, rows-of-RGBA)."""
+    """The wrench, as (width, height, rows-of-RGBA)."""
     lines = [line for line in SPRITE.splitlines() if line]
     if len(lines) != SPRITE_H:
         raise SystemExit('sprite has %d rows, want %d' % (len(lines), SPRITE_H))
@@ -256,6 +264,8 @@ def place_sprite():
     left = CX - drawn_width / 2.0 - min_x * SPRITE_SCALE
     top = CY - drawn_height / 2.0 - min_y * SPRITE_SCALE
 
+    check_fits(width, height, pixels, left, top)
+
     step = SPRITE_SCALE * SS
     buffer = [None] * (N * N)
     # Anything the sprite grid does not cover at all is outside it, by definition.
@@ -274,6 +284,34 @@ def place_sprite():
                     elif not outside[y][x]:
                         strokeable[row + gx] = 0
     return buffer, strokeable
+
+
+def check_fits(width, height, pixels, left, top):
+    """
+    Refuses a subject whose white stroke would reach the ring.
+
+    The badge draws the subject *over* the disc, so overflowing it does not fail, crash or warn --
+    it produces a picture with the tool's outline lying across the white ring, which looks like a
+    sticker applied crookedly. A redraw changes the silhouette's aspect ratio, and a taller or wider
+    subject at the same SPRITE_SCALE reaches further at the corners than the one it replaced: the
+    binding measurement is the distance to the furthest *opaque* corner, not the width or the
+    height, and neither of those is something to eyeball.
+    """
+    inner = RADIUS - RING
+    worst = 0.0
+    for y in range(height):
+        for x in range(width):
+            if not pixels[y][x][3]:
+                continue
+            x0 = left + x * SPRITE_SCALE
+            y0 = top + y * SPRITE_SCALE
+            for cx, cy in ((x0, y0), (x0 + SPRITE_SCALE, y0),
+                           (x0, y0 + SPRITE_SCALE), (x0 + SPRITE_SCALE, y0 + SPRITE_SCALE)):
+                worst = max(worst, math.hypot(cx - CX, cy - CY))
+    if worst + STROKE > inner:
+        raise SystemExit(
+            'the subject reaches %.1f px from the centre and its stroke adds %.1f, past the ring at '
+            '%.1f. Lower SPRITE_SCALE or draw it smaller.' % (worst, STROKE, inner))
 
 
 def outline_distance(buffer, reach):

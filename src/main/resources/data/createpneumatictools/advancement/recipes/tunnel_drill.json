@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_pneumatic_wrench": {
+      "conditions": {
+        "items": [
+          {
+            "items": "createpneumatictools:pneumatic_wrench"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "createpneumatictools:tunnel_drill"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_pneumatic_wrench"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "createpneumatictools:tunnel_drill"
+    ]
+  }
+}

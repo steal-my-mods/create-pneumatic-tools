@@ -2,7 +2,7 @@
 
 ## 0.1.0
 
-First release. Nine handheld tools that run off a Create backtank.
+First release. Eight handheld tools that run off a Create backtank.
 
 **Mining and harvesting**
 
@@ -10,7 +10,7 @@ First release. Nine handheld tools that run off a Create backtank.
   handles, one air per block.
 - **Pneumatic Jackhammer** — shatters hard blocks in a fixed quarter-second whatever their hardness,
   so Obsidian and Deepslate take the same moment. Slow and free on anything soft.
-- **3x3 Tunnelling Drill** — clears a 3x3 slice lying flat against the face you drilled, charged
+- **Tunnelling Drill** — clears a 3x3 slice lying flat against the face you drilled, charged
   once per burst. Drill a wall and it takes a wall; drill the floor and it cuts a trench.
 - **Pneumatic Saw** — fells a whole tree from one log, and harvests bamboo, cane, cactus and chorus
   the way a mounted Mechanical Saw does.

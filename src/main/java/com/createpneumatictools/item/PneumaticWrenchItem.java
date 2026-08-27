@@ -19,6 +19,8 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.util.BlockSnapshot;
+import net.neoforged.neoforge.event.EventHooks;
 
 /**
  * Portable torque: hold it against a shaft and it drives the network for as long as you hold the
@@ -69,13 +71,19 @@ public class PneumaticWrenchItem extends PneumaticToolItem {
 		BlockPos target = mountingSpot(context);
 		if (target == null)
 			return InteractionResult.PASS;
+		// The wrench is the one tool here that puts a block in the world, so it is the one tool that
+		// has to ask first. Vanilla's own check covers spawn protection and adventure mode; PASS
+		// rather than FAIL, so a wrench aimed somewhere it may not build behaves like an item with
+		// nothing to do rather than eating the click.
+		if (!player.mayUseItemAt(target, context.getClickedFace(), context.getItemInHand()))
+			return InteractionResult.PASS;
 		if (!isPowered(player)) {
 			refuse(player);
 			return InteractionResult.FAIL;
 		}
 
 		if (!level.isClientSide) {
-			if (!place(level, target, context.getClickedFace()))
+			if (!place(level, target, context.getClickedFace(), player))
 				return InteractionResult.FAIL;
 			AllSoundEvents.STEAM.playOnServer(level, target, 0.4F, 1.2F);
 		}
@@ -180,7 +188,16 @@ public class PneumaticWrenchItem extends PneumaticToolItem {
 		return occupant.canBeReplaced() ? spot : null;
 	}
 
-	private static boolean place(Level level, BlockPos spot, Direction clickedFace) {
+	/**
+	 * Puts the source down, if everything that gets a say agrees.
+	 *
+	 * <p>Placed first and rolled back on a veto, which is the shape {@code BlockItem.place} uses and
+	 * the reason {@code EntityPlaceEvent} carries a snapshot: a listener wants to see the world as it
+	 * would be, not be asked to imagine it. Claim and protection mods mostly cancel
+	 * {@code RightClickBlock} long before this, but vanilla spawn protection does not, and neither
+	 * does anything that only listens for placement.
+	 */
+	private static boolean place(Level level, BlockPos spot, Direction clickedFace, Player player) {
 		if (level.getBlockState(spot)
 			.getBlock() instanceof PneumaticSourceBlock)
 			return true;
@@ -188,7 +205,14 @@ public class PneumaticWrenchItem extends PneumaticToolItem {
 		BlockState state = CPTBlocks.PNEUMATIC_SOURCE.get()
 			.defaultBlockState()
 			.setValue(DirectionalKineticBlock.FACING, clickedFace.getOpposite());
-		return level.setBlockAndUpdate(spot, state);
+		BlockSnapshot before = BlockSnapshot.create(level.dimension(), level, spot);
+		if (!level.setBlockAndUpdate(spot, state))
+			return false;
+		if (EventHooks.onBlockPlace(player, before, clickedFace)) {
+			before.restore();
+			return false;
+		}
+		return true;
 	}
 
 	/** A little steam where the source is, because otherwise nothing at all shows it is there. */

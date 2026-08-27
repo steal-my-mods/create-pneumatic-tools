@@ -1,6 +1,6 @@
 # Create: Pneumatic Tools — repo guide
 
-Create addon for **Minecraft 1.21.1 / NeoForge 21.1.219+ / Create 6.0+**. Nine handheld tools that
+Create addon for **Minecraft 1.21.1 / NeoForge 21.1.219+ / Create 6.0+**. Eight handheld tools that
 run off a Create backtank.
 
 ## Commands
@@ -17,6 +17,7 @@ python3 tools/generate_textures.py     # the eight material panels
 python3 tools/generate_logo.py         # the in-jar badge at 256
 python3 tools/generate_logo.py branding/icon-512.png --size 512   # ...and the 512 CurseForge wants
 python3 tools/generate_structures.py   # the empty GameTest template
+python3 tools/generate_recipe_advancements.py  # one per recipe, or nothing reaches the recipe book
 python3 tools/check_lang.py            # every tooltip key resolves, and nothing is orphaned
 ```
 
@@ -58,9 +59,7 @@ config can be read against Create's without converting anything, and
 | `item/PneumaticToolItem` | Base: hands the durability bar to the backtank, and owns `refuse` — the one "no air" sound |
 | `item/PneumaticDiggerItem` | Base for the four block-breakers. Owns the `TOOL` component and the `mineBlock` entry point |
 | `tool/DiggingHandler` | `PlayerEvent.BreakSpeed`. **All** of a digger's speed comes from here, and only while the tank has air |
-| `tool/CrankDriving` | `PlayerInteractEvent.RightClickBlock` at HIGH priority — the Pneumatic Wrench's whole behaviour |
 | `tool/Excavation` | The re-entrancy guard that stops the tunnelling drill and the saw breaking blocks forever |
-| `item/BatchProcessingItem` | Base for the Crimper and the Buffer: process the whole stack in your other hand, one click |
 | `client/CPTTooltips` | Registers each item with Create's `ItemDescription` so they get Create-style tooltips |
 | `source/PneumaticSourceBlock` | The Pneumatic Wrench's invisible, temporary generator |
 | `source/PneumaticSourceBlockEntity` | ...and its lease, which is the whole safety argument for it |
@@ -72,6 +71,7 @@ config can be read against Create's without converting anything, and
 | `tools/generate_models.py` | Every 3D model — chassis, heads, moving parts, display transforms |
 | `tools/generate_textures.py` | The eight material panels the models are skinned with |
 | `tools/generate_logo.py` | The Create-family badge |
+| `tools/generate_recipe_advancements.py` | One advancement per recipe — without them nothing appears in the recipe book |
 
 ## Things that will bite you
 
@@ -92,24 +92,19 @@ config can be read against Create's without converting anything, and
   through `Excavation.cascade` and both refuse to expand while `Excavation.cascading()` is true.
   `theTunnellingDrillDoesNotTunnelForever` covers it, and was mutation-checked by deleting the guard,
   which drains the whole 900-air tank on one click.
-- **The Pneumatic Wrench must be at `EventPriority.HIGH`.** Create has its own listener on
-  `RightClickBlock` — `ItemUseOverrides`, which the Hand Crank opts into at registration with
-  `.onRegister(ItemUseOverrides::addBlock)`. For any block on its list it calls the block's `use`
-  itself and cancels the event. At equal priority Create's runs first (Create loads first) and a
-  cancelled event never reaches the listeners behind it, so a NORMAL-priority handler here is never
-  called at all and the crank turns on hunger exactly as if this mod were not installed. It is not a
-  subtle failure to *watch* — the crank still turns — which is why it needs a test:
-  `theWrenchTurnsACrankOnAirRatherThanOnFood` asserts the food bar, not the rotation.
-- **A block's `useItemOn` runs before the held item's `useOn`.** True in general, not only for the
-  crank. Anything that must beat a Create block to the click has to be an interaction event.
+- **A block's `useItemOn` runs before the held item's `useOn`, and Create cancels the click for some
+  blocks outright.** Create listens on `RightClickBlock` with `ItemUseOverrides`, which blocks opt
+  into at registration (`.onRegister(ItemUseOverrides::addBlock)` — the Hand Crank does). For any
+  block on that list it calls the block's own `use` and cancels the event, so a held item's `useOn`
+  is never reached: right-click a Hand Crank with the Pneumatic Wrench and you turn the crank by
+  hand, not place a source. Anything in this mod that must beat a Create block to a click has to be
+  a `RightClickBlock` listener at `EventPriority.HIGH` — at equal priority Create's runs first,
+  because Create loads first, and a cancelled event never reaches the listeners behind it.
 - **`useOn` returning FAIL swallows the click; PASS lets it through to `use`.** The Buffer needs both
   hooks — waxing on a block, polishing in the air — and `Minecraft.startUseItem` only falls through
   to `use` when the block click was *not* consumed and *not* FAIL. So "this block will not wax" must
   return PASS, or facing a wall would stop you polishing. "This block would wax but the tank is
   empty" returns FAIL, which is correct: the click found something to do and could not do it.
-- **Dirt has a pressing recipe.** `create:pressing/path` turns dirt, coarse dirt, rooted dirt,
-  mycelium and podzol into a dirt path. A test that wants something the Crimper will *not* take needs
-  something else; a stick works. This cost a test.
 - **The tunneller re-casts the player's aim to find the face it drilled.** `mineBlock` is handed a
   position and no face, and the nearest axis of the *look* vector is not the same thing: cutting a
   trench you break the top of a block while looking mostly forwards, and a look-axis slice stands up
@@ -124,6 +119,17 @@ config can be read against Create's without converting anything, and
   `run-gametest/config/createpneumatictools-server.toml` had been written by an earlier run. Delete
   the file — in `run/` and `run-gametest/` both — after changing a default, or the test suite is
   reading last week's numbers.
+- **The four diggers can be enchanted, but only at an anvil.** They are in
+  `#minecraft:enchantable/mining_loot`, so Fortune and Silk Touch apply and are worth having. They
+  are deliberately *not* in `#minecraft:enchantable/mining`: Efficiency's contribution is gated on
+  the tool's own mining speed already exceeding 1, and the `TOOL` component here is pinned at exactly
+  1, so offering Efficiency would sell a book that does nothing. An enchanting *table* refuses all of
+  them regardless — `Item.isEnchantable` requires a `MAX_DAMAGE` component and these have no
+  durability — which is the correct answer for a tool that runs on air, and the same answer Create's
+  own Extendo Grip gives.
+- **`mine()` in the tests is `ServerPlayerGameMode.destroyBlock`, not `Level.destroyBlock`.** The
+  latter drops with `ItemStack.EMPTY` as the tool, so the loot table never sees the enchantments or
+  the tier. Nothing noticed until a Silk Touch drill was asked for Stone and produced Cobblestone.
 - **Instantly-breaking blocks are free, on purpose.** `PneumaticDiggerItem.mineBlock` returns early
   when `getDestroySpeed == 0`. Without it a walk through a meadow or a torch-lit cave drains a tank.
 - **The Vacuum Wand leaves items that still have a pickup delay.** Pulling one back would undo the
@@ -296,10 +302,21 @@ for the run, which is what makes the frames worth comparing — the parts spool 
 the work, and vanilla fires a swing that the hand transform is supposed to be ignoring. All three of
 those are invisible in a photograph of a tool at rest. Shots land in `run/screenshots/`.
 
-Two notes from using it. Kill the client with `pkill` often enough and the world's chunks corrupt —
-delete the save and re-copy `run-gametest/world`, whose name inside `level.dat` need not match the
-folder, since quick play keys off the folder. And a stale `session.lock` in the save will refuse the
-next launch.
+**`build.gradle` has to hand the flag across, and for a while it did not.** A `-D` on the gradle
+command line sets a property on the *daemon*, not on the forked client, so the documented command ran
+the world, logged nothing and took no photographs — a failure that looks exactly like the shoot
+deciding there was nothing to do. The `client` run block now forwards
+`createpneumatictools.photos` explicitly; without that line this whole section is fiction.
+
+Three notes from using it. Kill the client with `pkill` often enough and the world's chunks corrupt —
+the symptom is a "Failed to load chunk" toast in the corner of every photograph, which is worth
+noticing before the shot goes in the README. Delete the save and re-copy `run-gametest/world`, whose
+name inside `level.dat` need not match the folder, since quick play keys off the folder. And a stale
+`session.lock` in the save will refuse the next launch.
+
+The README's two images are crops of one frame — `branding/tools-in-hand.png` and
+`branding/the-eight-tools.png`. They are checked in rather than generated, so nothing regenerates
+them when a model changes; retaking them is this command plus a crop.
 
 ## Art
 
@@ -309,12 +326,22 @@ fails on a diff stays honest.
 
 - **The badge convention is shared with the sibling addons, and Create's art is not used.** Create's
   code is MIT but its `assets/` are All Rights Reserved. The badge's white-ringed azure disc is a
-  convention, not artwork; the subject is drawn from scratch. The handle on the drill is open, and it
-  only survives because `outside_cells()` can tell an enclosed hole from the outside — fill that in
-  and the badge reverts to a padlock, which is what three drafts of it were.
-- **The badge subject steps in and out four times on the way down** — handle, wider shoulder, body,
-  wider chuck flange, then six courses of bit narrowing to a point. Draw the handle and the body the
-  same width and the silhouette is a padlock; the taper is what makes it a tool.
+  convention, not artwork; the subject is drawn from scratch.
+- **The subject is the Pneumatic Wrench** — brass barrel, gunmetal collar, a steel socket with a dark
+  bore on the nose, a pistol grip behind a trigger guard, and a copper air fitting at the base of the
+  grip. It replaced a rock drill that was upright and symmetrical, and the right angle is what does
+  the work: stood upright the drawing could belong to any tool in the mod, and every sibling badge
+  already has a tall subject on a round field.
+- **The trigger guard's hole is open, and only survives because `outside_cells()` can tell an
+  enclosed hole from the outside.** Fill it in and the silhouette is an L, which is a pipe fitting.
+  It is 2 cells wide and 3 tall on purpose: the white stroke eats into it from both sides, and
+  anything narrower closes up at 256px.
+- **`check_fits` refuses a subject whose stroke would reach the ring.** The subject is drawn *over*
+  the disc, so overflowing it does not fail or warn — it produces a tool outline lying across the
+  white ring, like a sticker applied crookedly. The binding measurement is the distance to the
+  furthest *opaque corner*, which is not the width or the height and is not something to eyeball: the
+  wrench at `SPRITE_SCALE` 12 overshoots by 14px, at 11 by 4, and fits at 10. It caught this on the
+  first redraw the check existed for.
 - **`SPRITE_SCALE` must stay a whole number**, or the subject's pixels stop being square. That is why
   `--size` must be a multiple of 256.
 - **The badge is still a character grid**, and so were the item sprites before the tools had geometry.
@@ -346,7 +373,7 @@ button, the wrench keeps a real generator in the empty space against the face yo
   itself, and the wrench pushes the counter back up. Every case above becomes the same case, the
   renewals stopped, including the ones nobody thought of.
   `anUnrenewedSourceRemovesItself` covers it and was mutation-checked by breaking the countdown.
-- **`arenewedSourceStays` is the other half of that test.** Without it, the first one passes just as
+- **`aRenewedSourceStays` is the other half of that test.** Without it, the first one passes just as
   happily with the lease broken shut as with it working.
 - **Never give the block `Properties.air()`.** It makes `BlockState.isAir()` true, and a block that
   reports itself as air is skipped by half the world — including the rotation propagator, which

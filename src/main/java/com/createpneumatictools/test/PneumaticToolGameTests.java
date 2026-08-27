@@ -22,9 +22,12 @@ import com.simibubi.create.content.kinetics.simpleRelays.AbstractSimpleShaftBloc
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -34,9 +37,12 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -175,6 +181,34 @@ public class PneumaticToolGameTests {
 		// No boost, so no charge: the air is what does the shattering.
 		if (air(player) != before)
 			throw new GameTestAssertException("breaking stone cost the jackhammer air");
+		helper.succeed();
+	}
+
+	// --- enchanting ------------------------------------------------------------------------------
+
+	@GameTest(template = "workshop")
+	public static void aSilkTouchedDrillDropsWhatItBreaks(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.HAND_DRILL.get());
+		Holder<Enchantment> silkTouch = helper.getLevel()
+			.registryAccess()
+			.registryOrThrow(Registries.ENCHANTMENT)
+			.getHolderOrThrow(Enchantments.SILK_TOUCH);
+		ItemStack drill = player.getMainHandItem();
+		// Two separate things, and the first is the one a data file can silently break: an item is a
+		// legal target for Fortune and Silk Touch only through #minecraft:enchantable/mining_loot.
+		if (!silkTouch.value()
+			.canEnchant(drill))
+			throw new GameTestAssertException("Silk Touch will not go on the Hand Drill -- it is not in "
+				+ "#minecraft:enchantable/mining_loot");
+		drill.enchant(silkTouch, 1);
+
+		BlockPos stone = SITE.above();
+		helper.setBlock(stone, Blocks.STONE);
+		mine(helper, player, stone);
+
+		// Cobblestone here would mean the enchantment reached the item but not the drop, which is what
+		// a break path that forgot to pass the tool along looks like.
+		helper.assertItemEntityPresent(Items.STONE, stone, 2.0);
 		helper.succeed();
 	}
 
@@ -499,6 +533,29 @@ public class PneumaticToolGameTests {
 		helper.succeed();
 	}
 
+	@GameTest(template = "workshop")
+	public static void theWrenchDoesNotBuildWhereYouMayNot(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.WRENCH.get());
+		// Adventure mode, vanilla spawn protection, and any protection mod leaning on vanilla's own
+		// check all arrive at the wrench as mayBuild == false.
+		player.getAbilities().mayBuild = false;
+		BlockPos shaft = SITE.above();
+		helper.setBlock(shaft, AllBlocks.SHAFT.getDefaultState()
+			.setValue(AbstractSimpleShaftBlock.AXIS, Direction.Axis.Y));
+
+		int before = air(player);
+		InteractionResult result = useOn(helper, player, shaft);
+
+		helper.assertBlockNotPresent(CPTBlocks.PNEUMATIC_SOURCE.get(), shaft.above());
+		// PASS, not FAIL: a wrench aimed somewhere it may not build should behave like an item with
+		// nothing to do rather than eat the click.
+		if (result != InteractionResult.PASS)
+			throw new GameTestAssertException("expected PASS so the click falls through, got " + result);
+		if (air(player) != before)
+			throw new GameTestAssertException("a refused placement still cost air");
+		helper.succeed();
+	}
+
 	@GameTest(template = "workshop", timeoutTicks = 200)
 	public static void theSourceTurnsTheShaftItIsPutAgainst(GameTestHelper helper) {
 		Player player = worker(helper, CPTItems.WRENCH.get());
@@ -572,7 +629,7 @@ public class PneumaticToolGameTests {
 	}
 
 	@GameTest(template = "workshop", timeoutTicks = 200)
-	public static void arenewedSourceStays(GameTestHelper helper) {
+	public static void aRenewedSourceStays(GameTestHelper helper) {
 		Player player = worker(helper, CPTItems.WRENCH.get());
 		BlockPos shaft = SITE.above();
 		helper.setBlock(shaft, AllBlocks.SHAFT.getDefaultState()
@@ -673,20 +730,36 @@ public class PneumaticToolGameTests {
 	}
 
 	/**
-	 * Breaks a block the way a survival player does.
+	 * Breaks a block the way a survival player does, in {@code ServerPlayerGameMode.destroyBlock}'s
+	 * order and with its arguments.
 	 *
-	 * <p>{@code mineBlock} before {@code destroyBlock} is vanilla's order, not a convenience: the saw
+	 * <p>{@code mineBlock} before the block is removed is vanilla's order, not a convenience: the saw
 	 * hands the still-standing block's position to Create's tree search, so a test that removed it
 	 * first would be testing a different code path from the game.
+	 *
+	 * <p>The reason this is not simply {@code Level.destroyBlock(pos, true, player)}, which is what it
+	 * used to be, is that that overload drops with {@code ItemStack.EMPTY} as the tool. Nothing here
+	 * noticed until a Silk Touch drill was asked to drop Stone and dropped Cobblestone: with an empty
+	 * tool the loot table never sees the enchantments, the tier, or anything else about what broke the
+	 * block. {@code playerDestroy} takes the pre-mine copy of the stack, as vanilla does.
 	 */
 	private static void mine(GameTestHelper helper, Player player, BlockPos pos) {
 		BlockPos absolute = helper.absolutePos(pos);
-		BlockState state = helper.getLevel()
-			.getBlockState(absolute);
-		player.getMainHandItem()
-			.mineBlock(helper.getLevel(), state, absolute, player);
-		helper.getLevel()
-			.destroyBlock(absolute, true, player);
+		ServerLevel level = helper.getLevel();
+		BlockState state = level.getBlockState(absolute);
+		BlockEntity blockEntity = level.getBlockEntity(absolute);
+		ItemStack tool = player.getMainHandItem();
+		ItemStack used = tool.copy();
+		boolean harvests = state.canHarvestBlock(level, absolute, player);
+		tool.mineBlock(level, state, absolute, player);
+		if (!state.onDestroyedByPlayer(level, absolute, player, harvests,
+			level.getFluidState(absolute)))
+			return;
+		state.getBlock()
+			.destroy(level, absolute, state);
+		if (harvests)
+			state.getBlock()
+				.playerDestroy(level, player, absolute, state, blockEntity, used);
 	}
 
 	/** Renews a source's lease every tick for a while, standing in for a held button. */

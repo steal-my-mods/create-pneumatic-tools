@@ -1,14 +1,16 @@
 # Create: Pneumatic Tools
 
-Nine handheld tools that run off a Create backtank.
+Eight handheld tools that run off a Create backtank.
 
 **Minecraft 1.21.1 · NeoForge 21.1.219+ · Create 6.0+**
 
+![The Hand Drill in hand, with the other seven tools on the hotbar](branding/tools-in-hand.png)
+
 A Copper Backtank is already a portable power supply — Create just spends it on breathing and on the
 Extendo Grip. This addon spends it on work. Most of what Create does with rotation to a block bolted
-to the ground it could do to a block in front of you, so the Mechanical Drill, the Mechanical Saw,
-the Mechanical Press and the Hand Crank each get a version you hold, and the gaps between them are
-filled with the tools an actual workshop has: a jackhammer, a grinder, a buffer, a vacuum.
+to the ground it could do to a block in front of you, so the Mechanical Drill, the Mechanical Saw
+and the Hand Crank each get a version you hold, and the gaps between them are filled with the tools
+an actual workshop has: a jackhammer, a grinder, a buffer, a vacuum.
 
 Nothing here is a new mechanic. Every tool spends air through Create's own `BacktankUtil`, at a
 "uses per tank" rating in the same unit Create rates its own equipment in.
@@ -18,6 +20,8 @@ pointing where you are aiming it. Bits, impellers and sockets turn on the barrel
 spin on a spindle across it, and the jackhammer's chisel recoils and strikes. They idle while you
 carry them, spool up when you put them to work, and stop when the tank runs dry, so an empty
 backtank is something you see in your hand before you swing at anything.
+
+![All eight tools on a hotbar](branding/the-eight-tools.png)
 
 ---
 
@@ -29,7 +33,7 @@ backtank is something you see in your hand before you swing at anything.
 |---|---|---|
 | **Hand Drill** | A Mechanical Drill you can carry. Quick on anything a pickaxe or a shovel handles. | 900 blocks |
 | **Pneumatic Jackhammer** | Shatters hard blocks in a fixed quarter-second — Obsidian and Deepslate take the same moment. Netherite tier. Slow and **free** on anything soft. | 90 hard blocks |
-| **3x3 Tunnelling Drill** | Clears a 3x3 slice lying flat against the face you drilled — a wall if you drilled a wall, a trench if you drilled the floor. Charged once per burst, however many of the nine blocks were there. | 100 bursts |
+| **Tunnelling Drill** | Clears a 3x3 slice lying flat against the face you drilled — a wall if you drilled a wall, a trench if you drilled the floor. Charged once per burst, however many of the nine blocks were there. | 100 bursts |
 | **Pneumatic Saw** | Fells a whole tree from one log, canopy and all. Bamboo, cane, cactus and chorus too. | 60 trees |
 
 ### Surface treatment
@@ -107,7 +111,7 @@ The other two are upgrades of tools you already have:
  . O .          O = Powdered Obsidian        D D D          D = Mechanical Drill
  O D O          D = Hand Drill               D W D          W = Pneumatic Wrench
  . O .                                       D D D
-   -> Pneumatic Jackhammer                     -> 3x3 Tunnelling Drill
+   -> Pneumatic Jackhammer                     -> Tunnelling Drill
 ```
 
 ---

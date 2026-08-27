@@ -102,6 +102,7 @@ jobs:
           python3 tools/generate_models.py
           python3 tools/generate_textures.py
           python3 tools/generate_structures.py
+          python3 tools/generate_recipe_advancements.py
           python3 tools/generate_logo.py
           python3 tools/generate_logo.py branding/icon-512.png --size 512
           git add -A

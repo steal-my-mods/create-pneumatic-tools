@@ -57,6 +57,13 @@ neoForge {
                 programArgument '--quickPlaySingleplayer'
                 programArgument project.property('quickPlay').toString()
             }
+            // A -D on the gradle command line lands on the *daemon*, not on the forked client, so
+            // CPTPhotoShoot never saw its flag and the run just played the world and logged nothing.
+            // Handing it across explicitly is what makes the command in CLAUDE.md true.
+            def photos = System.getProperty('createpneumatictools.photos')
+            if (photos != null) {
+                systemProperty 'createpneumatictools.photos', photos
+            }
         }
         server {
             server()
