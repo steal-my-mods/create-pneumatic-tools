@@ -14,7 +14,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
  *
  * <p>One shared pair rather than a state object per tool, because there is only ever one thing in a
  * player's hand and the alternative is a map keyed by something — the item, the stack, the hand —
- * that has to be cleaned up when the player stops holding it. Two floats need no cleaning up. The
+ * that has to be cleaned up when the player stops holding it. Two numbers need no cleaning up. The
  * cost is that a tool in each hand runs in phase with the other, which nobody will ever see.
  *
  * <p>The throttle is <em>eased</em> towards its target rather than snapped to it, and that is the
@@ -33,8 +33,21 @@ public class ToolAnimation {
 
 	private static float throttle;
 	private static float previousThrottle;
-	private static float phase;
-	private static float previousPhase;
+	/**
+	 * Degrees turned at the base rate, never wrapped, which is why it is a double.
+	 *
+	 * <p>Wrapping it to 360 here is the obvious thing and is wrong: each tool multiplies this by its
+	 * own speed, and {@code 360 * multiplier} is a whole number of turns only when the multiplier is
+	 * an integer. So a wrap snapped every part by {@code 360 * frac(multiplier)} — 216 degrees on the
+	 * Saw at 1.6, twice a second at full throttle — and only the two tools set to exactly 1.0 came out
+	 * of it looking continuous. The wrap belongs after the multiplication instead, in {@link #angle}.
+	 *
+	 * <p>Which leaves the precision this used to accumulate without bound: a float runs out of it in a
+	 * long session and the spin visibly stutters, at 600 degrees a second. A double has fifty-three
+	 * bits of mantissa, so the same drift needs longer than any world will run.
+	 */
+	private static double phase;
+	private static double previousPhase;
 
 	private ToolAnimation() {}
 
@@ -46,11 +59,7 @@ public class ToolAnimation {
 		previousThrottle = throttle;
 		previousPhase = phase;
 		throttle += (target() - throttle) * SPOOL;
-		phase += throttle * FULL_SPEED;
-		// Wrapped, or after a long session the float runs out of precision and the spin visibly
-		// stutters -- 360 is a whole turn, so wrapping to it is invisible.
-		if (phase >= 360.0F)
-			phase -= 360.0F;
+		phase += (double) throttle * FULL_SPEED;
 	}
 
 	private static float target() {
@@ -96,9 +105,16 @@ public class ToolAnimation {
 		return minecraft.options.keyAttack.isDown() || minecraft.options.keyUse.isDown();
 	}
 
-	/** Degrees turned so far, for a part whose own speed is {@code multiplier} times the base. */
+	/**
+	 * Degrees turned so far, for a part whose own speed is {@code multiplier} times the base.
+	 *
+	 * <p>Interpolate, then scale, then wrap — in that order. {@link #phase} only ever rises, so the
+	 * interpolation is a plain lerp with no wrap to step over, and taking the whole turns off the
+	 * scaled figure is what keeps the part continuous at any multiplier. See {@link #phase}.
+	 */
 	public static float angle(float multiplier, float partialTicks) {
-		return Mth.rotLerp(partialTicks, previousPhase, phase) * multiplier;
+		double turned = Mth.lerp(partialTicks, previousPhase, phase);
+		return (float) (turned * multiplier % 360.0);
 	}
 
 	/** 0 while stopped, 1 at full speed. Used by the reciprocating parts to damp their travel. */

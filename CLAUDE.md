@@ -482,6 +482,16 @@ model and one or more animated parts per tool, and `PneumaticToolRenderer` draws
 - **`ToolAnimation.load` is the throttle with the idle part removed**, and it is what the hand
   transform leans on. The parts turn over whenever there is air in the line; the tool should only
   press into the work when there is work. Derived, not tracked, so there is no second clock.
+- **The shared phase must not be wrapped to 360, because each tool multiplies it afterwards.** That
+  is what made the Saw's blade snap back to a starting position about twice a second: `angle()`
+  returns `phase * multiplier`, and `360 * multiplier` is a whole number of turns only when the
+  multiplier is an integer, so every wrap jumped the part by `360 * frac(multiplier)` — 216 degrees on
+  the Saw at 1.6, 168 on the Vacuum Wand at 1.5, 72 in the Jackhammer's sine argument at 2.2. Seven of
+  the nine tools had it and the two set to exactly 1.0 did not, which is why it read as one tool being
+  broken. Interpolate, scale, *then* take the whole turns off. The precision the wrap was there to
+  protect is why `phase` is now a `double`: a float accumulating 600 degrees a second runs out of
+  mantissa in a long session and the spin stutters, and there is no bound that is a whole turn for
+  every multiplier at once.
 
 ### Photographing the tools
 
