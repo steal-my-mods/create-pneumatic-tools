@@ -59,7 +59,7 @@ config can be read against Create's without converting anything, and
 | `item/PneumaticToolItem` | Base: hands the durability bar to the backtank, and owns `refuse` — the one "no air" sound |
 | `item/PneumaticDiggerItem` | Base for the four block-breakers. Owns the `TOOL` component and the `mineBlock` entry point |
 | `tool/DiggingHandler` | `PlayerEvent.BreakSpeed`. **All** of a digger's speed comes from here, and only while the tank has air |
-| `tool/Excavation` | The re-entrancy guard that stops the tunnelling drill and the saw breaking blocks forever |
+| `tool/Excavation` | The re-entrancy guard that stops the tunnelling drill and the saw breaking blocks forever — and the veto that keeps the extra blocks inside spawn protection and the world border |
 | `client/CPTTooltips` | Registers each item with Create's `ItemDescription` so they get Create-style tooltips |
 | `source/PneumaticSourceBlock` | The Pneumatic Wrench's invisible, temporary generator |
 | `source/PneumaticSourceBlockEntity` | ...and its lease, which is the whole safety argument for it |
@@ -83,6 +83,66 @@ config can be read against Create's without converting anything, and
   vanilla adds `MINING_EFFICIENCY` only when the tool's own contribution already exceeds 1, so it
   never applies. None of these is enchantable at a table and "the air is what makes it fast" is the
   premise, so leave it. Haste and Mining Fatigue still work; they are multiplicative and land after.
+- **Vanilla's spawn protection and world border only ever guard the block named in the packet.**
+  Both are checked in `ServerGamePacketListenerImpl`, against the position the client sent, so they
+  cover the block a player actually swung at and nothing else. Every extra block the tunneller and
+  the saw take down was described to nobody. Claim mods were always fine — Create's
+  `destroyBlockAs` posts `BlockEvent.BreakEvent` and honours a cancellation — but vanilla's own two
+  gates are not listeners, so `Excavation.aCascadeStaysInsideTheRules` asks `level.mayInteract` on
+  their behalf. `TunnelDrillItem.breakIfWorthIt` asks a second time before calling Create at all,
+  which is not redundant: `destroyBlockAs` throws its break particle *before* it posts the event, so
+  a veto alone leaves a puff of debris on a block that then does not break.
+  `theTunnellingDrillStopsAtTheWorldBorder` covers it, by shrinking the border to one block wide
+  around the block being drilled so two of the eight neighbours stay inside it and six do not — a
+  blanket refusal would pass a test that only checked that something survived. Spawn protection
+  itself cannot be GameTested: a test server has no ops, and `isUnderSpawnProtection` returns false
+  on that before it looks at a position.
+- **The saw charges per *cut*, not per tree actually felled, and that is not an oversight.** Making
+  the charge conditional on the felling having found something looks fairer and is a hole: a tree
+  taken down from the top is a run of cuts that each fell nothing, so the whole thing would come
+  down at saw speed for no air at all. One use per cut is the bargain the Hand Drill strikes, and
+  "once per tree, not per log" is kept by the cascade guard rather than by counting. This was
+  written the other way first, on the belief that cutting into the middle of a trunk paid a whole
+  tree for nothing — `TreeCutter.validateCut` does refuse a log with more log underneath, but not in
+  that geometry: a three-log column cut in the middle still fells the log above it, which is what
+  the test showed.
+- **The wrench finds its source through the chunks' block entities, not by reading block states.**
+  `PneumaticWrenchItem.driving` runs every tick the button is held, on the client as well as the
+  server. Sweeping `BlockPos.betweenClosed` over the reach is `(2r+1)^3` palette lookups a tick —
+  4,913 at the default `wrenchRange` of 8 and 274,625 at the config maximum of 32, which is a
+  meaningful slice of a server tick for one player. A source always has a block entity, so walking
+  `LevelChunk.getBlockEntities()` over the nine chunks in range finds the same block for a few dozen
+  map reads. Ask for the chunks with `load = false`: a source is only ever placed within arm's reach
+  of somebody standing there, so an unloaded chunk cannot hold one, and asking would generate
+  terrain to answer a question about a block that lasts half a second.
+- **A source belongs to whoever last clicked its face**, and only their wrench renews it. Without
+  that, `driving` answered with the nearest source whoever put it there — so two people wrenching in
+  one workshop drove each other's blocks: one player's renewals kept the other's alive while their
+  own lease ran out, and letting go removed a generator somebody else was still using. The owner
+  narrows a search and nothing more; it is emphatically not what keeps the block alive, so a null
+  driver fails closed and the lease still takes the block away. Placing over an existing source
+  re-stamps it, on purpose: the block is invisible, and a player who could not take a spot someone
+  else had claimed would be holding a wrench that silently did nothing.
+  `aSourceAnswersOnlyToTheWrenchThatPlacedIt` covers it.
+- **The client must not end the wrench's use just because it cannot see the block.** `place` is
+  server side, so the source does not exist on the client for at least a tick and for as long as the
+  connection costs. `LocalPlayer.stopUsingItem` sends no packet, so the server keeps driving — but
+  the client's `isUsingItem` goes false with the button still down, and vanilla then re-fires
+  `startUseItem` every four ticks for the whole window, re-placing and re-hissing all the way.
+  Invisible in single player, obvious at 120 ms. `useOn` only plays its steam when the source was
+  not already standing there, for the same reason.
+- **`refuse()` sits behind the item's own cooldown, and has to.** A refusal is the one thing a tool
+  says while a button is held, a `useOn` that returns FAIL has vanilla re-firing it every four
+  ticks, and `playOnServer` broadcasts — so an empty tank held against a block was ten sound packets
+  a second to everybody in earshot, and the person it was meant for learned nothing after the first.
+  Using the item cooldown rather than a timestamp of ours also greys the icon, which is the visible
+  half the mod otherwise lacked. It gates `useOn` for those ten ticks, which costs nothing: a tool
+  with no air had nothing to do with the click.
+- **The buffer's polishing loop must not re-ask `canPolish`.** It runs
+  `RecipeManager.getRecipesFor` — a stream over every sandpaper recipe, a match test on each, then a
+  sort of the survivors keyed on their output's description id — and `use()` has already asked
+  before the loop starts. Every item in a stack is the same item, so `split(1)` cannot change the
+  answer; asking per item made a stack of 64 pay for that query 64 times to be told what it knew.
 - **`ItemStack.mineBlock` runs *before* the block is removed.** That is what lets the saw hand the
   still-standing log's position to `TreeCutter.findTree`, which reads the block above it. Move the
   work to a break event and the tree search gets a different world than Create's own saw gives it.
@@ -327,11 +387,20 @@ fails on a diff stays honest.
 - **The badge convention is shared with the sibling addons, and Create's art is not used.** Create's
   code is MIT but its `assets/` are All Rights Reserved. The badge's white-ringed azure disc is a
   convention, not artwork; the subject is drawn from scratch.
-- **The subject is the Pneumatic Wrench** — brass barrel, gunmetal collar, a steel socket with a dark
-  bore on the nose, a pistol grip behind a trigger guard, and a copper air fitting at the base of the
-  grip. It replaced a rock drill that was upright and symmetrical, and the right angle is what does
-  the work: stood upright the drawing could belong to any tool in the mod, and every sibling badge
-  already has a tall subject on a round field.
+- **The subject is the Pneumatic Wrench, in three-quarter view** — brass barrel with a lit top face,
+  a bright steel socket with a dark bore on the nose, a pistol grip behind a trigger guard, and a
+  copper air fitting at the base of the grip. It replaced a rock drill that was upright and
+  symmetrical, and the right angle is what does the work: stood upright the drawing could belong to
+  any tool in the mod.
+- **The badge is drawn in cabinet projection**, the same argument `gui_view()` makes about the item
+  icons: every box shows its front face, with the top and the right end extruded up-right by two
+  cells, in the material's light and dark tones. There is no shading model — three tones per
+  material and nothing else — so a face painted in the wrong one of the three flattens its box back
+  into a rectangle. A flat elevation was drawn first and is perfectly legible; it just reads as the
+  one badge that forgot to have depth next to Create's own 3D-rendered items.
+- **The head is bright steel and the grip is dark andesite**, which is not what the model is. In
+  their true neighbouring greys the two merge into a single shape at thumbnail size, which is where
+  a badge does most of its work.
 - **The trigger guard's hole is open, and only survives because `outside_cells()` can tell an
   enclosed hole from the outside.** Fill it in and the silhouette is an L, which is a pipe fitting.
   It is 2 cells wide and 3 tall on purpose: the white stroke eats into it from both sides, and

@@ -7,9 +7,13 @@ import com.createpneumatictools.source.PneumaticSourceBlockEntity;
 import com.simibubi.create.AllSoundEvents;
 import com.simibubi.create.content.kinetics.base.DirectionalKineticBlock;
 
+import java.util.Map;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.SectionPos;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -17,7 +21,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.BlockSnapshot;
 import net.neoforged.neoforge.event.EventHooks;
@@ -72,10 +78,13 @@ public class PneumaticWrenchItem extends PneumaticToolItem {
 		if (target == null)
 			return InteractionResult.PASS;
 		// The wrench is the one tool here that puts a block in the world, so it is the one tool that
-		// has to ask first. Vanilla's own check covers spawn protection and adventure mode; PASS
-		// rather than FAIL, so a wrench aimed somewhere it may not build behaves like an item with
-		// nothing to do rather than eating the click.
-		if (!player.mayUseItemAt(target, context.getClickedFace(), context.getItemInHand()))
+		// has to ask first, and it has to ask twice. mayUseItemAt covers adventure mode; mayInteract
+		// covers spawn protection and the world border, which vanilla checks only against the block
+		// named in the packet -- and the source goes in the space *next* to that one, which no packet
+		// ever described. PASS rather than FAIL, so a wrench aimed somewhere it may not build behaves
+		// like an item with nothing to do rather than eating the click.
+		if (!player.mayUseItemAt(target, context.getClickedFace(), context.getItemInHand())
+			|| !level.mayInteract(player, target))
 			return InteractionResult.PASS;
 		if (!isPowered(player)) {
 			refuse(player);
@@ -83,9 +92,15 @@ public class PneumaticWrenchItem extends PneumaticToolItem {
 		}
 
 		if (!level.isClientSide) {
+			// Only a source that was not already standing there gets the hiss. Vanilla re-fires a use
+			// every four ticks whenever the last one ended early, and a re-click on a face already
+			// being driven would otherwise broadcast one of these five times a second.
+			boolean fresh = !(level.getBlockState(target)
+				.getBlock() instanceof PneumaticSourceBlock);
 			if (!place(level, target, context.getClickedFace(), player))
 				return InteractionResult.FAIL;
-			AllSoundEvents.STEAM.playOnServer(level, target, 0.4F, 1.2F);
+			if (fresh)
+				AllSoundEvents.STEAM.playOnServer(level, target, 0.4F, 1.2F);
 		}
 		player.startUsingItem(context.getHand());
 		return InteractionResult.sidedSuccess(level.isClientSide);
@@ -95,13 +110,26 @@ public class PneumaticWrenchItem extends PneumaticToolItem {
 	public void onUseTick(Level level, LivingEntity holder, ItemStack wrench, int remaining) {
 		if (!(holder instanceof Player player))
 			return;
+		if (level.isClientSide) {
+			// The client gets no say in whether the wrench is still driving. place() is server side,
+			// so the block does not exist here for at least a tick and for however long the connection
+			// costs -- and a client that ended its own use over that would have vanilla re-firing
+			// startUseItem every four ticks for the whole window, re-placing and re-hissing all the
+			// way. It draws what it can see and waits for the rest.
+			//
+			// The roll comes before the search rather than inside exhaust(): two ticks in three draw
+			// nothing at all, and there is no reason to go looking for a position nobody will use.
+			if (level.random.nextInt(3) == 0) {
+				BlockPos at = driving(player);
+				if (at != null)
+					exhaust(level, at);
+			}
+			return;
+		}
+
 		BlockPos target = driving(player);
 		if (target == null) {
 			player.stopUsingItem();
-			return;
-		}
-		if (level.isClientSide) {
-			exhaust(level, target);
 			return;
 		}
 
@@ -150,26 +178,52 @@ public class PneumaticWrenchItem extends PneumaticToolItem {
 	 * <p>Found by looking rather than remembered, which is what keeps this stateless: there is no
 	 * field, no data component and no map to get out of step with the world. Walking away, or the
 	 * block being gone for any other reason, is simply a search that comes back empty.
+	 *
+	 * <p>It looks through the <em>block entities</em> of the chunks in range rather than at the blocks
+	 * in them, and the difference is not small. A source always has a block entity, so the two
+	 * searches find the same thing; but reading every block state in the cube is {@code (2r+1)^3}
+	 * palette lookups a tick — 4,913 at the default range, and 274,625 at the largest the config
+	 * allows — on the client as well as the server, for every tick the button is down. Nine chunks'
+	 * worth of block entities is a few dozen map entries. The knob was quietly cubic; now it is not.
+	 *
+	 * <p>And it only answers with sources this player claimed. See
+	 * {@link PneumaticSourceBlockEntity#isDrivenBy} for what the nearest-block-wins version did to two
+	 * people working in the same room.
 	 */
 	private static BlockPos driving(Player player) {
 		double reach = CPTConfig.wrenchRange();
-		BlockPos eye = BlockPos.containing(player.getEyePosition());
-		int span = (int) Math.ceil(reach);
+		Level level = player.level();
+		Vec3 eye = player.getEyePosition();
+		int fromX = SectionPos.blockToSectionCoord(Mth.floor(eye.x - reach));
+		int toX = SectionPos.blockToSectionCoord(Mth.ceil(eye.x + reach));
+		int fromZ = SectionPos.blockToSectionCoord(Mth.floor(eye.z - reach));
+		int toZ = SectionPos.blockToSectionCoord(Mth.ceil(eye.z + reach));
+
 		BlockPos best = null;
 		double nearest = reach * reach;
-		for (BlockPos pos : BlockPos.betweenClosed(eye.offset(-span, -span, -span),
-			eye.offset(span, span, span))) {
-			if (!(player.level()
-				.getBlockState(pos)
-				.getBlock() instanceof PneumaticSourceBlock))
-				continue;
-			double distance = player.getEyePosition()
-				.distanceToSqr(Vec3.atCenterOf(pos));
-			if (distance <= nearest) {
-				nearest = distance;
-				best = pos.immutable();
+		for (int x = fromX; x <= toX; x++)
+			for (int z = fromZ; z <= toZ; z++) {
+				// load = false: a source is only ever placed within arm's reach of somebody standing
+				// there, so a chunk that is not loaded cannot be holding one -- and asking for it
+				// would generate terrain to answer a question about a block that lasts half a second.
+				LevelChunk chunk = level.getChunkSource()
+					.getChunk(x, z, false);
+				if (chunk == null)
+					continue;
+				for (Map.Entry<BlockPos, BlockEntity> entry : chunk.getBlockEntities()
+					.entrySet()) {
+					if (!(entry.getValue() instanceof PneumaticSourceBlockEntity source))
+						continue;
+					if (!source.isDrivenBy(player))
+						continue;
+					double distance = eye.distanceToSqr(Vec3.atCenterOf(entry.getKey()));
+					if (distance > nearest)
+						continue;
+					nearest = distance;
+					best = entry.getKey()
+						.immutable();
+				}
 			}
-		}
 		return best;
 	}
 
@@ -198,20 +252,26 @@ public class PneumaticWrenchItem extends PneumaticToolItem {
 	 * does anything that only listens for placement.
 	 */
 	private static boolean place(Level level, BlockPos spot, Direction clickedFace, Player player) {
-		if (level.getBlockState(spot)
-			.getBlock() instanceof PneumaticSourceBlock)
-			return true;
-		// FACING is where the shaft comes out, so it points back into the block that was clicked.
-		BlockState state = CPTBlocks.PNEUMATIC_SOURCE.get()
-			.defaultBlockState()
-			.setValue(DirectionalKineticBlock.FACING, clickedFace.getOpposite());
-		BlockSnapshot before = BlockSnapshot.create(level.dimension(), level, spot);
-		if (!level.setBlockAndUpdate(spot, state))
-			return false;
-		if (EventHooks.onBlockPlace(player, before, clickedFace)) {
-			before.restore();
-			return false;
+		if (!(level.getBlockState(spot)
+			.getBlock() instanceof PneumaticSourceBlock)) {
+			// FACING is where the shaft comes out, so it points back into the block that was clicked.
+			BlockState state = CPTBlocks.PNEUMATIC_SOURCE.get()
+				.defaultBlockState()
+				.setValue(DirectionalKineticBlock.FACING, clickedFace.getOpposite());
+			BlockSnapshot before = BlockSnapshot.create(level.dimension(), level, spot);
+			if (!level.setBlockAndUpdate(spot, state))
+				return false;
+			if (EventHooks.onBlockPlace(player, before, clickedFace)) {
+				before.restore();
+				return false;
+			}
 		}
+		// Whoever clicks a face is the one driving it from here, even if a source was already standing
+		// in the space. Refusing to hand one over would be the safer-looking rule and the worse one:
+		// the block is invisible, so a player who could not take a spot somebody else had claimed
+		// would be holding a wrench that did nothing, with nothing to look at that said why.
+		if (level.getBlockEntity(spot) instanceof PneumaticSourceBlockEntity source)
+			source.drivenBy(player);
 		return true;
 	}
 

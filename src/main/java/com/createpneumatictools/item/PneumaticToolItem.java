@@ -27,6 +27,9 @@ import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
  */
 public abstract class PneumaticToolItem extends Item {
 
+	/** How long a refusal keeps quiet for. Half a second: one chirp per press, not one per tick. */
+	private static final int REFUSAL_QUIET_TICKS = 10;
+
 	protected PneumaticToolItem(Properties properties) {
 		super(properties.stacksTo(1));
 	}
@@ -45,10 +48,26 @@ public abstract class PneumaticToolItem extends Item {
 	/**
 	 * Tells the player the tank is empty. Server side; the sound carries to everyone nearby, which is
 	 * the same thing Create's own low-air warning does.
+	 *
+	 * <p>Behind a cooldown, because a refusal is the one thing a tool has to say while a button is
+	 * being held down. A {@code useOn} that returns FAIL has vanilla re-firing it every four ticks,
+	 * and {@code playOnServer} broadcasts — so an empty tank held against a block was ten sound
+	 * packets a second to everybody in earshot, and the person it was meant for could not have got
+	 * more out of it than the first one.
+	 *
+	 * <p>The item's own cooldown rather than a timestamp of ours, because it also greys the icon: the
+	 * refusal becomes something you can see as well as hear. It gates {@code useOn} for those ten
+	 * ticks, which costs nothing — a tool with no air had nothing to do with the click anyway — and
+	 * half a second of a tool that will not fire is what an empty tool is.
 	 */
 	public void refuse(Player player) {
 		if (player.level().isClientSide)
 			return;
+		if (player.getCooldowns()
+			.isOnCooldown(this))
+			return;
+		player.getCooldowns()
+			.addCooldown(this, REFUSAL_QUIET_TICKS);
 		BlockPos at = player.blockPosition();
 		AllSoundEvents.DENY.playOnServer(player.level(), at, 1.0F, 1.25F);
 		AllSoundEvents.STEAM.playOnServer(player.level(), at, 0.35F, 0.6F);

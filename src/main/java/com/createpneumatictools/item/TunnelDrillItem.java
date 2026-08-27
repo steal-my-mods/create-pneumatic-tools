@@ -115,6 +115,13 @@ public class TunnelDrillItem extends PneumaticDiggerItem {
 			return;
 		if (!canHarvest(stack, state))
 			return;
+		// Vanilla checks spawn protection and the world border against the position in the packet, so
+		// they cover the block the player actually swung at and nothing else. The eight around it have
+		// to ask on their own account. Excavation's veto catches this too, but only after Create's
+		// helper has already thrown a break particle at the block -- and a puff of debris off a block
+		// that then does not break reads as the tool being broken.
+		if (!level.mayInteract(player, pos))
+			return;
 		Excavation.breakAs(level, pos, player, stack, EFFECT_CHANCE);
 	}
 }

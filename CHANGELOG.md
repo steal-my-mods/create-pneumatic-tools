@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+**Multiplayer**
+
+- A Pneumatic Wrench now only drives sources it placed. Two players wrenching within range of each
+  other used to find each other's: one player's renewals kept the other's generator alive while
+  their own lease ran out, and letting go of the button removed a generator somebody else was still
+  using.
+- The Tunnelling Drill and the Pneumatic Saw no longer reach through spawn protection or the world
+  border. Vanilla checks both only against the block a player actually swung at; the extra blocks
+  these two take down now ask for themselves. Claim mods were already respected.
+- The Pneumatic Wrench asks permission for the space the source goes in, rather than only for the
+  block it was held against.
+- An empty backtank says so once rather than five times a second. Holding the button on a dry tank
+  used to broadcast two sounds every four ticks to everyone nearby; the refusal now puts the tool on
+  a half-second cooldown, which also greys the icon.
+- New config option `vacuum.vacuumOnlyOwnDrops` (default off) makes the Vacuum Wand leave alone
+  stacks another player dropped or died holding. Block and mob drops belong to nobody and are taken
+  either way.
+
+**Performance**
+
+- The Pneumatic Wrench no longer reads every block state within reach, every tick, on both sides —
+  4,913 of them at the default range and 274,625 at the largest the config allows. It walks the
+  block entities of the chunks in range instead.
+- Polishing a stack with the Pneumatic Buffer no longer runs the recipe lookup twice per item.
+
 ## 0.1.0
 
 First release. Eight handheld tools that run off a Create backtank.

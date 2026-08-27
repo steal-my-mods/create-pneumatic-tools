@@ -86,8 +86,11 @@ public class VacuumWandItem extends PneumaticToolItem {
 		double radius = CPTConfig.vacuumRadius();
 		Vec3 mouth = player.position()
 			.add(0.0, player.getBbHeight() * 0.5, 0.0);
+		// Null means "anybody's", which is vanilla's own bargain over a dropped stack. The knob exists
+		// because vanilla's version of that bargain assumes an arm's length and a walk over to it.
+		Player owner = CPTConfig.vacuumOnlyOwnDrops() ? player : null;
 		List<Entity> caught = level.getEntities(player,
-			new AABB(mouth, mouth).inflate(radius), VacuumWandItem::vacuumable);
+			new AABB(mouth, mouth).inflate(radius), entity -> vacuumable(entity, owner));
 
 		if (level.isClientSide) {
 			for (Entity entity : caught)
@@ -110,14 +113,32 @@ public class VacuumWandItem extends PneumaticToolItem {
 			AllSoundEvents.STEAM.playOnServer(level, player.blockPosition(), 0.2F, 1.6F);
 	}
 
-	private static boolean vacuumable(Entity entity) {
+	/**
+	 * @param owner the only player whose own drops may be taken, or null to take anybody's
+	 */
+	private static boolean vacuumable(Entity entity, Player owner) {
 		if (!entity.isAlive())
 			return false;
 		// A dropped stack keeps its pickup delay so that pressing Q while holding the wand does not
 		// simply undo itself; once the delay lapses the next pulse takes it.
 		if (entity instanceof ItemEntity item)
-			return !item.hasPickUpDelay();
+			return !item.hasPickUpDelay() && mayTake(item, owner);
 		return entity instanceof ExperienceOrb;
+	}
+
+	/**
+	 * Whether {@code owner} is allowed this stack.
+	 *
+	 * <p>A thrower is only set on a stack a player <em>chose</em> to part with — pressing Q, or dying
+	 * — so "no thrower" is every block drop, every mob drop and every chest that spat its contents,
+	 * which are exactly the things a vacuum is for. Filtering those out too would leave a tool with
+	 * nothing to pick up.
+	 */
+	private static boolean mayTake(ItemEntity item, Player owner) {
+		if (owner == null)
+			return true;
+		Entity thrower = item.getOwner();
+		return thrower == null || thrower == owner;
 	}
 
 	private static void drag(Entity entity, Vec3 mouth) {

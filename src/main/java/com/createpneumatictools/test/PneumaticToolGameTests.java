@@ -44,6 +44,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.border.WorldBorder;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -354,6 +355,42 @@ public class PneumaticToolGameTests {
 		helper.succeed();
 	}
 
+	@GameTest(template = "workshop")
+	public static void theTunnellingDrillStopsAtTheWorldBorder(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.TUNNEL_DRILL.get());
+		BlockPos centre = SITE.above();
+		buildWall(helper, centre, 1);
+		lookAt(player, Direction.NORTH);
+
+		// Vanilla checks the border in the packet handler, against the position the packet named --
+		// so it covers the block a player swings at and nothing else. The eight the burst takes with
+		// it were never described to anybody. A border one block wide, centred on the block being
+		// drilled, puts the two neighbours directly above and below it inside and the six either side
+		// of it out; that asymmetry is the point, because a blanket refusal would pass this too.
+		WorldBorder border = helper.getLevel()
+			.getWorldBorder();
+		double wasX = border.getCenterX();
+		double wasZ = border.getCenterZ();
+		double wasSize = border.getSize();
+		Vec3 at = Vec3.atCenterOf(helper.absolutePos(centre));
+		try {
+			border.setCenter(at.x, at.z);
+			border.setSize(1.0);
+			mine(helper, player, centre);
+		} finally {
+			border.setCenter(wasX, wasZ);
+			border.setSize(wasSize);
+		}
+
+		for (int y = -1; y <= 1; y++) {
+			if (y != 0)
+				helper.assertBlockNotPresent(Blocks.STONE, centre.offset(0, y, 0));
+			for (int x : new int[] {-1, 1})
+				helper.assertBlockPresent(Blocks.STONE, centre.offset(x, y, 0));
+		}
+		helper.succeed();
+	}
+
 	// --- the surface pair -------------------------------------------------------------------------
 
 	@GameTest(template = "workshop")
@@ -503,6 +540,51 @@ public class PneumaticToolGameTests {
 		if (dropped.getDeltaMovement()
 			.lengthSqr() > 0.01)
 			throw new GameTestAssertException("an item still on its pickup delay was pulled in");
+		helper.succeed();
+	}
+
+	@GameTest(template = "workshop")
+	public static void theWandCanBeToldToLeaveOtherPeoplesDropsAlone(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.VACUUM_WAND.get());
+		Player stranger = helper.makeMockPlayer(GameType.SURVIVAL);
+		Vec3 away = Vec3.atCenterOf(helper.absolutePos(SITE.above()
+			.east(3)));
+
+		// A thrower is set on a stack somebody chose to part with -- pressing Q, or dying. Block and
+		// mob drops have none, and are still fair game with the knob on, or a vacuum would have
+		// nothing left to pick up.
+		ItemEntity theirs = new ItemEntity(helper.getLevel(), away.x, away.y, away.z,
+			new ItemStack(Items.DIAMOND));
+		theirs.setNoPickUpDelay();
+		theirs.setDeltaMovement(Vec3.ZERO);
+		theirs.setThrower(stranger);
+		ItemEntity nobodys = new ItemEntity(helper.getLevel(), away.x, away.y, away.z,
+			new ItemStack(Items.IRON_INGOT));
+		nobodys.setNoPickUpDelay();
+		nobodys.setDeltaMovement(Vec3.ZERO);
+		helper.getLevel()
+			.addFreshEntity(theirs);
+		helper.getLevel()
+			.addFreshEntity(nobodys);
+
+		CPTConfig.INSTANCE.vacuumOnlyOwnDrops.set(true);
+		try {
+			player.startUsingItem(InteractionHand.MAIN_HAND);
+			for (int tick = 0; tick < 10; tick++)
+				CPTItems.VACUUM_WAND.get()
+					.onUseTick(helper.getLevel(), player, player.getMainHandItem(),
+						player.getUseItemRemainingTicks() - tick);
+		} finally {
+			CPTConfig.INSTANCE.vacuumOnlyOwnDrops.set(false);
+		}
+
+		if (theirs.getDeltaMovement()
+			.lengthSqr() > 0.01)
+			throw new GameTestAssertException("the wand took a stack another player had dropped");
+		if (nobodys.getDeltaMovement()
+			.lengthSqr() < 0.01)
+			throw new GameTestAssertException(
+				"the wand also stopped taking ownerless drops, which is everything it is for");
 		helper.succeed();
 	}
 
@@ -674,6 +756,52 @@ public class PneumaticToolGameTests {
 		useOn(helper, player, shaft);
 
 		helper.assertBlockNotPresent(CPTBlocks.PNEUMATIC_SOURCE.get(), shaft.above());
+		helper.succeed();
+	}
+
+	@GameTest(template = "workshop")
+	public static void aSourceAnswersOnlyToTheWrenchThatPlacedIt(GameTestHelper helper) {
+		Player mine = worker(helper, CPTItems.WRENCH.get());
+		BlockPos shaft = SITE.above();
+		helper.setBlock(shaft, AllBlocks.SHAFT.getDefaultState()
+			.setValue(AbstractSimpleShaftBlock.AXIS, Direction.Axis.Y));
+		useOn(helper, mine, shaft);
+		BlockPos spot = shaft.above();
+		helper.assertBlockPresent(CPTBlocks.PNEUMATIC_SOURCE.get(), spot);
+
+		// A second player standing in the same place, which is where two people wrenching in one
+		// workshop actually stand. The search used to answer with the nearest source whoever put it
+		// there, so this player's renewals kept somebody else's block alive while their own lease ran
+		// out -- and letting go took down a generator that was still in use.
+		Player theirs = worker(helper, CPTItems.WRENCH.get());
+		int before = air(theirs);
+		drive(helper, theirs, 3);
+		CPTItems.WRENCH.get()
+			.releaseUsing(theirs.getMainHandItem(), helper.getLevel(), theirs, 0);
+
+		helper.assertBlockPresent(CPTBlocks.PNEUMATIC_SOURCE.get(), spot);
+		if (air(theirs) != before)
+			throw new GameTestAssertException("the second wrench paid " + (before - air(theirs))
+				+ " air to drive a source it does not own");
+		helper.succeed();
+	}
+
+	@GameTest(template = "workshop")
+	public static void aRefusalSaysSoOnceRatherThanEveryTick(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.GRINDER.get());
+		setAir(player, 0);
+		BlockPos log = SITE.above();
+		helper.setBlock(log, Blocks.OAK_LOG);
+
+		useOn(helper, player, log);
+
+		// Vanilla re-fires a use that returned FAIL every four ticks, and the deny is played to
+		// everybody in earshot rather than to the one person it is for -- so an empty tank held
+		// against a block was ten sound packets a second to the whole room.
+		if (!player.getCooldowns()
+			.isOnCooldown(CPTItems.GRINDER.get()))
+			throw new GameTestAssertException(
+				"a refusal left nothing behind to keep the next four ticks quiet");
 		helper.succeed();
 	}
 

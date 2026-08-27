@@ -56,6 +56,11 @@ public class PneumaticSawItem extends PneumaticDiggerItem {
 			return;
 		if (!SawBlockEntity.isSawable(state))
 			return;
+		// Charged per cut, and deliberately before the search rather than after it. Making the charge
+		// conditional on the felling having found something looks fairer and is not: a tree taken
+		// down from the top is a run of cuts that each fell nothing, so it would be a whole tree at
+		// saw speed for no air at all. One use per cut is the same bargain the Hand Drill strikes,
+		// and "once per tree, not per log" is kept by the cascade guard above, not by this.
 		if (!spendAir(player))
 			return;
 

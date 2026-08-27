@@ -3,10 +3,13 @@ package com.createpneumatictools.source;
 import com.createpneumatictools.CPTConfig;
 import com.simibubi.create.content.kinetics.base.GeneratingKineticBlockEntity;
 
+import java.util.UUID;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup.Provider;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -39,6 +42,21 @@ public class PneumaticSourceBlockEntity extends GeneratingKineticBlockEntity {
 
 	private int lease = LEASE_TICKS;
 
+	/**
+	 * Whose wrench is allowed to renew this one, or null for nobody's.
+	 *
+	 * <p>It narrows a search; it is emphatically not what keeps the block alive. Without it
+	 * {@code PneumaticWrenchItem.driving} answered with the nearest source to the holder's eye whoever
+	 * put it there, so two people wrenching in the same workshop drove each other's blocks: one
+	 * player's renewals kept the other's alive while their own lease ran out, and letting go removed a
+	 * block somebody else was still using.
+	 *
+	 * <p>Null therefore fails closed, and safely: nobody can renew an unowned source, so the lease
+	 * runs down and the block goes. A driver that failed to save, or a block from a world older than
+	 * this field, costs its holder one more click rather than leaving a generator nobody can find.
+	 */
+	private UUID driver;
+
 	public PneumaticSourceBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
 		super(type, pos, state);
 	}
@@ -46,6 +64,18 @@ public class PneumaticSourceBlockEntity extends GeneratingKineticBlockEntity {
 	/** Called by the wrench, every tick it is still driving this position. */
 	public void renew() {
 		lease = LEASE_TICKS;
+	}
+
+	/** Claims this source for {@code player}: from now on only their wrench can renew it. */
+	public void drivenBy(Player player) {
+		driver = player.getUUID();
+		setChanged();
+	}
+
+	/** Whether {@code player}'s wrench is the one allowed to renew this source. */
+	public boolean isDrivenBy(Player player) {
+		return player.getUUID()
+			.equals(driver);
 	}
 
 	/**
@@ -81,12 +111,18 @@ public class PneumaticSourceBlockEntity extends GeneratingKineticBlockEntity {
 	@Override
 	public void write(CompoundTag compound, Provider registries, boolean clientPacket) {
 		compound.putInt("Lease", lease);
+		// Written to the client packet as well as to disk: the wrench looks for the block it is
+		// driving on both sides -- the client to know where to draw the exhaust -- and a client that
+		// did not know who owned one could not tell its own source from the next player's.
+		if (driver != null)
+			compound.putUUID("Driver", driver);
 		super.write(compound, registries, clientPacket);
 	}
 
 	@Override
 	protected void read(CompoundTag compound, Provider registries, boolean clientPacket) {
 		lease = compound.getInt("Lease");
+		driver = compound.hasUUID("Driver") ? compound.getUUID("Driver") : null;
 		super.read(compound, registries, clientPacket);
 	}
 

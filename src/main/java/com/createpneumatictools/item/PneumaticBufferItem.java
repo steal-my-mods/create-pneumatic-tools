@@ -111,9 +111,14 @@ public class PneumaticBufferItem extends PneumaticToolItem {
 		}
 
 		int done = 0;
-		// spendAir last in the condition: it charges, so it must not run once more than it works.
-		while (!feedstock.isEmpty() && SandPaperPolishingRecipe.canPolish(level, feedstock)
-			&& spendAir(player)) {
+		// canPolish is deliberately absent from this condition, though it reads like it belongs. It
+		// runs RecipeManager.getRecipesFor -- a stream over every sandpaper recipe, a match test on
+		// each, and then a sort of the survivors keyed on their output's description id -- and the
+		// check twelve lines up has already asked. Every item in a stack is the same item, so split(1)
+		// cannot change the answer, and asking again per item made a stack of 64 pay for that query
+		// sixty-four times over to be told what it already knew.
+		// spendAir stays last: it charges, so it must not run once more than it works.
+		while (!feedstock.isEmpty() && spendAir(player)) {
 			ItemStack one = feedstock.split(1);
 			ItemStack polished =
 				SandPaperPolishingRecipe.applyPolish(level, player.position(), one, ItemStack.EMPTY);

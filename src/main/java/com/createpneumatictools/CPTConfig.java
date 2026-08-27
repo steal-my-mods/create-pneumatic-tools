@@ -39,6 +39,7 @@ public class CPTConfig {
 	public final ModConfigSpec.IntValue vacuumUsesPerTank;
 	public final ModConfigSpec.DoubleValue vacuumRadius;
 	public final ModConfigSpec.IntValue vacuumInterval;
+	public final ModConfigSpec.BooleanValue vacuumOnlyOwnDrops;
 
 	public final ModConfigSpec.IntValue wrenchUsesPerTank;
 	public final ModConfigSpec.IntValue wrenchInterval;
@@ -83,7 +84,9 @@ public class CPTConfig {
 		builder.comment("Pneumatic Saw").push("saw");
 		sawUsesPerTank = usesPerTank(builder, "sawUsesPerTank", 60,
 			"Trees a full Copper Backtank will fell. Charged per tree, not per log -- the whole",
-			"canopy comes down for one payment.");
+			"canopy comes down for one payment. There is no cap on how big a tree may be, so a giant",
+			"jungle one is a single payment and a single long tick: this is the one tool here with",
+			"no ceiling on the work one click can ask for.");
 		sawSpeed = builder
 			.comment("Mining speed on anything an axe handles. A Diamond Axe is 8.")
 			.defineInRange("sawSpeed", 9.0, 1.0, 1000.0);
@@ -110,6 +113,13 @@ public class CPTConfig {
 		vacuumInterval = builder
 			.comment("Ticks between pulses while the button is held. Every pulse costs one use.")
 			.defineInRange("vacuumInterval", 4, 1, 100);
+		vacuumOnlyOwnDrops = builder
+			.comment("Whether the wand leaves alone stacks another player dropped or died holding.",
+				"Block and mob drops belong to nobody and are taken either way -- this is only about",
+				"stacks with an owner on them. Off matches vanilla, where a dropped stack goes to",
+				"whoever reaches it first; that is a different bargain when the reach is eight blocks",
+				"and does not need line of sight, so a shared server usually wants this on.")
+			.define("vacuumOnlyOwnDrops", false);
 		builder.pop();
 
 		builder.comment("Pneumatic Wrench").push("wrench");
@@ -219,6 +229,10 @@ public class CPTConfig {
 
 	public static int vacuumInterval() {
 		return read(INSTANCE.vacuumInterval);
+	}
+
+	public static boolean vacuumOnlyOwnDrops() {
+		return read(INSTANCE.vacuumOnlyOwnDrops);
 	}
 
 	public static int wrenchUsesPerTank() {
