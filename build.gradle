@@ -19,6 +19,30 @@ java {
     withSourcesJar()
 }
 
+configurations {
+    // Mods we want loaded in the dev runs and never anywhere else.
+    //
+    // `runtimeClasspath` is what FML scans for mods in a dev run -- it is how Create itself gets
+    // loaded here, by way of `implementation` -- so extending it is what makes a jar a mod rather than
+    // a library. Two things that look like they would do the job and do not:
+    //
+    //   * `additionalRuntimeClasspath`, MDG's own hook, is documented as dependencies "that should not
+    //     be considered boot classpath modules". It puts the jar among gson and netty in the legacy
+    //     classpath file, where FML never scans it, so the mod silently does not exist. A whole client
+    //     launch looked like JEI simply failing to appear.
+    //   * `RunModel.getAdditionalRuntimeClasspathConfiguration()` exists and reads like a per-run
+    //     version of the same thing, but MDG 2.0.144 never registers it on the project; adding to it
+    //     from inside a `runs { client { } }` block does nothing at all, and says nothing about it.
+    //
+    // Not `runtimeOnly`, which would work: this project publishes `from components.java`, and
+    // `runtimeElements` -- the variant that publishes -- extends `implementation` and `runtimeOnly`.
+    // A dev-only recipe viewer would be recorded there as something a consumer of this mod needs.
+    // `runtimeClasspath` is resolvable rather than consumable, so nothing added through it is
+    // published.
+    devMods
+    runtimeClasspath.extendsFrom devMods
+}
+
 repositories {
     mavenLocal()
     maven {
@@ -32,6 +56,10 @@ repositories {
     maven {
         name = 'NeoForged'
         url = 'https://maven.neoforged.net/releases'
+    }
+    maven {
+        name = 'JEI (dev client only)'
+        url = 'https://maven.blamejared.com'
     }
     mavenCentral()
 }
@@ -115,6 +143,10 @@ def createJijJars = fileTree(createJijDir) { include '*.jar' }
 createJijJars.builtBy(unpackCreateJij)
 
 dependencies {
+    // A recipe viewer for the dev runs. See the `devMods` configuration above for why it is declared
+    // there rather than as a `runtimeOnly` or an `additionalRuntimeClasspath` dependency.
+    devMods "mezz.jei:jei-${project.minecraft_version}-neoforge:${project.jei_version}"
+
     createArtifact(createCoordinate) { transitive = false }
 
     // Create 6.0 for 1.21.1 (NeoForge)

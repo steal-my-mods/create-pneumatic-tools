@@ -25,9 +25,15 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -189,15 +195,61 @@ public class PneumaticToolGameTests {
 		helper.succeed();
 	}
 
+	// --- recipes ---------------------------------------------------------------------------------
+
+	/**
+	 * Every tool has a recipe the game actually loaded, and every workbench recipe has the advancement
+	 * that puts it in the recipe book.
+	 *
+	 * <p>Worth a test because both halves fail *silently* and neither shows up in any other test here —
+	 * nothing else in this file crafts anything, so the whole data directory could go missing and the
+	 * suite would stay green. A recipe that failed to load is a tool nobody can make; a recipe that
+	 * loaded without its advancement is a tool nobody can find, because vanilla only lists a recipe in
+	 * the book once an advancement has granted it.
+	 *
+	 * <p>The advancement is expected for {@code RecipeType.CRAFTING} and refused for anything else, which
+	 * is the same rule {@code generate_recipe_advancements.py} follows: the Borer is mechanical crafting,
+	 * the vanilla book cannot draw that recipe type, and an advancement granting it would unlock a page
+	 * that does not exist. Create ships none for its own mechanical recipes either.
+	 */
+	@GameTest(template = "workshop")
+	public static void everyToolHasALoadedRecipe(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel()
+			.getServer();
+		RecipeManager recipes = server.getRecipeManager();
+
+		for (var entry : CPTItems.all()) {
+			ResourceLocation id = entry.getId();
+			RecipeHolder<?> recipe = recipes.byKey(id)
+				.orElseThrow(() -> new GameTestAssertException("no recipe loaded as " + id
+					+ " -- the tool cannot be made at all"));
+			if (!recipe.value()
+				.getResultItem(server.registryAccess())
+				.is(entry.get()))
+				throw new GameTestAssertException(
+					"the recipe at " + id + " does not produce " + id.getPath());
+
+			boolean vanillaCrafting = recipe.value()
+				.getType() == RecipeType.CRAFTING;
+			ResourceLocation unlock =
+				CreatePneumaticTools.asResource("recipes/" + id.getPath());
+			boolean granted = server.getAdvancements()
+				.get(unlock) != null;
+			if (granted != vanillaCrafting)
+				throw new GameTestAssertException(id.getPath()
+					+ (granted ? " has an unlock advancement at " : " has no unlock advancement at ")
+					+ unlock + " and it should" + (vanillaCrafting ? "" : " not")
+					+ " -- re-run tools/generate_recipe_advancements.py");
+		}
+		helper.succeed();
+	}
+
 	// --- enchanting ------------------------------------------------------------------------------
 
 	@GameTest(template = "workshop")
 	public static void aSilkTouchedDrillDropsWhatItBreaks(GameTestHelper helper) {
 		Player player = worker(helper, CPTItems.HAND_DRILL.get());
-		Holder<Enchantment> silkTouch = helper.getLevel()
-			.registryAccess()
-			.registryOrThrow(Registries.ENCHANTMENT)
-			.getHolderOrThrow(Enchantments.SILK_TOUCH);
+		Holder<Enchantment> silkTouch = enchantment(helper, Enchantments.SILK_TOUCH);
 		ItemStack drill = player.getMainHandItem();
 		// Two separate things, and the first is the one a data file can silently break: an item is a
 		// legal target for Fortune and Silk Touch only through #minecraft:enchantable/mining_loot.
@@ -215,6 +267,150 @@ public class PneumaticToolGameTests {
 		// a break path that forgot to pass the tool along looks like.
 		helper.assertItemEntityPresent(Items.STONE, stone, 2.0);
 		helper.succeed();
+	}
+
+	/**
+	 * Every digger takes Fortune and Silk Touch, nothing else takes anything, and no tool goes on an
+	 * enchanting table.
+	 *
+	 * <p>Driven off {@link CPTItems#all()} rather than a list written here, because the thing that
+	 * breaks is a <em>data file</em>: an item is a legal target for Fortune and Silk Touch only through
+	 * {@code #minecraft:enchantable/mining_loot}, and a tool left out of that tag is a tool that
+	 * quietly cannot be enchanted at all. Adding a tool to the mod and forgetting the tag now fails
+	 * here instead of shipping.
+	 *
+	 * <p>{@code supportsEnchantment} rather than {@code Enchantment.canEnchant}, because that is the
+	 * call the anvil actually makes ({@code AnvilMenu}) and so the one that decides in game.
+	 */
+	@GameTest(template = "workshop")
+	public static void onlyTheDiggersTakeLootEnchantments(GameTestHelper helper) {
+		Holder<Enchantment> fortune = enchantment(helper, Enchantments.FORTUNE);
+		Holder<Enchantment> silkTouch = enchantment(helper, Enchantments.SILK_TOUCH);
+		Holder<Enchantment> efficiency = enchantment(helper, Enchantments.EFFICIENCY);
+
+		for (var entry : CPTItems.all()) {
+			ItemStack stack = new ItemStack(entry.get());
+			String name = entry.getId()
+				.getPath();
+			boolean digs = entry.get() instanceof PneumaticDiggerItem;
+
+			// Fortune and Silk Touch come through #minecraft:enchantable/mining_loot, Efficiency through
+			// #minecraft:enchantable/mining. Every digger takes all three and nothing else takes any.
+			for (Holder<Enchantment> book : List.of(fortune, silkTouch, efficiency)) {
+				boolean takes = stack.supportsEnchantment(book);
+				if (takes != digs)
+					throw new GameTestAssertException(name + (takes ? " takes " : " will not take ")
+						+ book.getRegisteredName() + " and it should" + (digs ? "" : " not")
+						+ " -- check the #minecraft:enchantable tags");
+			}
+
+			// None of them goes on a table: Item.isEnchantable wants a MAX_DAMAGE component and these
+			// have no durability, so all three are an anvil-and-book affair. Same answer Create's own
+			// Extendo Grip gives.
+			if (stack.isEnchantable())
+				throw new GameTestAssertException(name + " reports itself enchantable, so an enchanting "
+					+ "table will offer it levels -- these have no durability and are anvil-only");
+		}
+		helper.succeed();
+	}
+
+	@GameTest(template = "workshop")
+	public static void efficiencyIsWorthALevelOfHaste(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.HAND_DRILL.get());
+		BlockState stone = Blocks.STONE.defaultBlockState();
+
+		float plain = player.getDestroySpeed(stone);
+		int level = 5;
+		player.getMainHandItem()
+			.enchant(enchantment(helper, Enchantments.EFFICIENCY), level);
+		float enchanted = player.getDestroySpeed(stone);
+
+		// Vanilla would add nothing at all here: MINING_EFFICIENCY is gated on the tool's own mining
+		// speed exceeding 1 and the TOOL component is pinned at exactly 1, so a plain reading of this
+		// pair is what the tool looked like before DiggingHandler applied the bonus itself.
+		float expected = 1.0F + 0.2F * level;
+		if (Math.abs(enchanted / plain - expected) > 0.01F)
+			throw new GameTestAssertException("Efficiency " + level + " took the Hand Drill from "
+				+ plain + " to " + enchanted + ", a factor of " + enchanted / plain + " where "
+				+ expected + " was expected");
+		helper.succeed();
+	}
+
+	@GameTest(template = "workshop")
+	public static void anEfficientJackhammerStillIgnoresHardness(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.JACKHAMMER.get());
+		// Obsidian is 50 hardness and Deepslate 3, and the whole point of the tool is that they take
+		// the same moment. Efficiency must shorten that moment by a factor rather than by an amount:
+		// vanilla's additive bonus, applied to a speed this tool solved backwards out of a *time*,
+		// would give Deepslate far more than Obsidian and pull the two apart again.
+		player.getMainHandItem()
+			.enchant(enchantment(helper, Enchantments.EFFICIENCY), 5);
+
+		float obsidian = perHardness(player, Blocks.OBSIDIAN.defaultBlockState());
+		float deepslate = perHardness(player, Blocks.DEEPSLATE.defaultBlockState());
+
+		if (Math.abs(obsidian - deepslate) > obsidian / 100.0F)
+			throw new GameTestAssertException("with Efficiency on it the jackhammer breaks Obsidian at "
+				+ obsidian + " speed per hardness and Deepslate at " + deepslate
+				+ " -- the two must stay equal or the tool no longer ignores hardness");
+		helper.succeed();
+	}
+
+	@GameTest(template = "workshop")
+	public static void aBiasedJackhammerGetsQuickerOnHarderBlocks(GameTestHelper helper) {
+		Player player = worker(helper, CPTItems.JACKHAMMER.get());
+		double was = CPTConfig.INSTANCE.jackhammerHardnessBias.get();
+		// Set and restored the way the world-border test does it, and for the same reason: the
+		// alternative is a test that only passes on a config file somebody edited first.
+		try {
+			double bias = 0.5;
+			CPTConfig.INSTANCE.jackhammerHardnessBias.set(bias);
+
+			BlockState deepslate = Blocks.DEEPSLATE.defaultBlockState();
+			BlockState obsidian = Blocks.OBSIDIAN.defaultBlockState();
+			float slow = perHardness(player, deepslate);
+			float quick = perHardness(player, obsidian);
+
+			// break time = breakTicks * (minHardness / hardness) ^ bias, and speed-per-hardness is
+			// 30 / break time -- so the ratio of the two is the ratio of the hardnesses to the bias.
+			// Asserted as a ratio rather than in ticks so the test carries none of the constants.
+			double expected = Math.pow(obsidian.getBlock()
+				.defaultDestroyTime() / deepslate.getBlock()
+					.defaultDestroyTime(), bias);
+			if (Math.abs(quick / slow - expected) > 0.01)
+				throw new GameTestAssertException("at bias " + bias
+					+ " the jackhammer breaks Obsidian " + quick / slow
+					+ " times as fast per hardness as Deepslate, expected " + expected);
+			// And the direction, spelled out, because a ratio near 1 would satisfy an arithmetic slip
+			// that quietly left the tool flat.
+			if (quick <= slow)
+				throw new GameTestAssertException("a biased jackhammer is no quicker on Obsidian than "
+					+ "on Deepslate -- the whole point of the knob is that harder is faster");
+		} finally {
+			CPTConfig.INSTANCE.jackhammerHardnessBias.set(was);
+		}
+		helper.succeed();
+	}
+
+	/**
+	 * Dig speed divided by the block's hardness.
+	 *
+	 * <p>For the jackhammer this is hardness-free by construction — it solves its speed as
+	 * {@code hardness x 30 / breakTicks} — so comparing it across two very different blocks is what
+	 * says whether the fixed break time survived. Using the ratio rather than reconstructing the tick
+	 * count keeps the test free of the constants it would otherwise have to duplicate.
+	 */
+	private static float perHardness(Player player, BlockState state) {
+		return player.getDestroySpeed(state) / state.getBlock()
+			.defaultDestroyTime();
+	}
+
+	private static Holder<Enchantment> enchantment(GameTestHelper helper,
+		ResourceKey<Enchantment> key) {
+		return helper.getLevel()
+			.registryAccess()
+			.registryOrThrow(Registries.ENCHANTMENT)
+			.getHolderOrThrow(key);
 	}
 
 	// --- the tunnelling drill ---------------------------------------------------------------------

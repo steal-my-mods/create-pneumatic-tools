@@ -28,6 +28,19 @@
 
 **Tools**
 
+- **New config option `jackhammerHardnessBias`** (default 0, no change out of the box). The jackhammer
+  gives every qualifying block the same break time; turn this up and the softest one still takes that
+  long while harder ones take less — at 0.5, Obsidian breaks about four times quicker than Deepslate.
+  Worth knowing that a flat break time already *is* an inverted hardness scale, since the multiplier
+  grows linearly with hardness and cancels it out; this makes it grow faster than linearly, which is
+  what it takes for harder to be genuinely quicker.
+- **The five digging tools now take Efficiency**, which vanilla would never have applied to them:
+  `Player.getDigSpeed` adds its bonus only once a tool's own mining speed exceeds 1, and these are
+  pinned at exactly 1 so that an empty tank means bare hands. `DiggingHandler` applies it instead, on
+  the near side of that gate. One level is worth one level of Haste — vanilla's own per-level step —
+  so Efficiency V doubles the speed and stacks with a beacon. It multiplies rather than adds, because
+  the Jackhammer's speed is solved backwards out of a fixed break *time*: adding a flat bonus would
+  have shortened Deepslate far more than Obsidian and undone the one thing that tool is for.
 - **The Pneumatic Wrench is worth 1024 Stress Units at any speed**, rather than a fixed 16 SU per
   RPM. Create bills a generator as torque times speed, which is right when a generator owns its speed
   — a Water Wheel turns at 8 and that is that — and wrong for a tool that can match somebody else's:
@@ -80,7 +93,6 @@
 - The Pneumatic Wrench no longer reads every block state within reach, every tick, on both sides —
   4,913 of them at the default range and 274,625 at the largest the config allows. It walks the
   block entities of the chunks in range instead.
-- Polishing a stack with the Pneumatic Buffer no longer runs the recipe lookup twice per item.
 
 ## 0.1.0
 

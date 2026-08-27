@@ -61,7 +61,7 @@ not the tool's.
 
 Costs are stated as **uses per tank**, which is the unit Create already uses for the Extendo Grip
 (1000 actions) and the Potato Cannon (200 shots), so these numbers can be read straight against
-Create's own. A rating becomes a cost the way Create's does: `airInBacktank / usesPerTank`, charged
+Create's own. A rating becomes a cost the way Create's does: `max(airInBacktank / usesPerTank, 1)`, charged
 against the *emptiest* tank you are wearing — so a second backtank is a second tank, not a spare.
 
 Two tools charge only for what they are for, which is deliberate rather than an oversight:
@@ -93,8 +93,67 @@ Wheel turns at 8 and that is that) and wrong for a tool that can be handed someb
 shaft of your own.
 
 Everything is configurable in `config/createpneumatictools-server.toml`, including the jackhammer's
-break time in ticks and the vacuum's radius. Set any tool's rating to **0** and it becomes free and
-needs no backtank at all.
+break time in ticks and the vacuum's radius. One knob there is off by default and worth knowing about:
+`jackhammerHardnessBias` tilts the jackhammer so that harder blocks break *faster* rather than merely
+taking the same time — at 0.5, Obsidian goes about four times quicker than Deepslate. Set any tool's rating to **0** and it becomes free and
+needs no backtank at all. Raising one past **900** does nothing, though: a use cannot cost less than
+one air unit, so 900 is the most a tank can give however large the number. What *does* go past it is
+Create's **Capacity** enchantment on the backtank — the cost per use is worked out from an unenchanted
+tank, so Capacity III doubles the air without touching the price and every tool gets twice the uses.
+
+## Enchantments
+
+The five digging tools take **Fortune**, **Silk Touch** and **Efficiency**, from an **anvil and a
+book** — not an enchanting table, which wants durability they do not have. Fortune and Silk Touch
+apply to every block in a burst, not just the one you swung at, so a Silk Touch Borer takes
+twenty-five intact blocks at once.
+
+One level of Efficiency is worth one level of Haste, so Efficiency V doubles a tool's speed and a
+beacon stacks on top of that. On the Jackhammer it shortens the fixed break time *without* letting
+hardness back into it, which is why the bonus multiplies rather than adds the way vanilla's does. And
+it only helps where the air already does: a Jackhammer on soft stone is slow and free with a book on
+it, exactly as it is without.
+
+The other four tools take nothing, and neither does anything the air pays for: on the backtank itself
+only **Capacity** touches how far a tank goes.
+
+---
+
+## Configuration
+
+All of it is server-side, in `config/createpneumatictools-server.toml`. Every option, with its
+default:
+
+| Section | Option | Default | What it does |
+|---|---|---|---|
+| `hand_drill` | `handDrillUsesPerTank` | 900 | Blocks a full Copper Backtank will break |
+| | `handDrillSpeed` | 9.0 | Mining speed on pickaxe and shovel blocks. A Diamond Pickaxe is 8 |
+| `jackhammer` | `jackhammerUsesPerTank` | 90 | Hard blocks a tank will shatter. Soft ones are free |
+| | `jackhammerMinHardness` | 3.0 | Hardness the tool starts working at. Deepslate is 3, Stone 1.5 |
+| | `jackhammerBreakTicks` | 5 | Ticks to shatter a qualifying block, whatever its hardness |
+| | `jackhammerHardnessBias` | 0.0 | Raise it and harder blocks break *faster*, not merely as fast |
+| `tunnel_drill` | `tunnelDrillUsesPerTank` | 100 | 3x3 bursts a tank will fire, charged once each |
+| | `tunnelDrillSpeed` | 7.0 | Mining speed per block. Lower than the Hand Drill's |
+| `borer` | `borerUsesPerTank` | 50 | 5x5 bursts a tank will fire, charged once each |
+| | `borerSpeed` | 5.0 | Mining speed per block. Lower again |
+| `saw` | `sawUsesPerTank` | 60 | Trees a tank will fell, charged per tree rather than per log |
+| | `sawSpeed` | 9.0 | Mining speed on axe blocks. A Diamond Axe is 8 |
+| `grinder` | `grinderUsesPerTank` | 300 | Surfaces a tank will strip, scrape or unwax |
+| `buffer` | `bufferUsesPerTank` | 300 | Blocks a tank will seal |
+| `vacuum` | `vacuumUsesPerTank` | 900 | Pulses a tank will pay for. A pulse catching nothing is free |
+| | `vacuumRadius` | 8.0 | How far the suction reaches, in blocks |
+| | `vacuumInterval` | 4 | Ticks between pulses while the button is held |
+| | `vacuumOnlyOwnDrops` | false | Leave alone stacks another player dropped or died holding |
+| `wrench` | `wrenchUsesPerTank` | 450 | Pulses of rotation a tank will drive |
+| | `wrenchInterval` | 10 | Ticks between charges while it is driving |
+| | `wrenchRpm` | 64.0 | Speed it turns a *still* network at. A Hand Crank is 32 |
+| | `wrenchStressUnits` | 1024.0 | Stress Units it supplies — the whole figure, at any speed |
+| | `wrenchRange` | 8.0 | How far you can get from the shaft before it lets go |
+
+Two things about the ratings that are easy to trip over. Setting one to **0** makes that tool free and
+lets it work with no backtank at all. Raising one past **900** does nothing, because a use cannot cost
+less than one air unit — see the note above about Capacity, which is the only thing that gets past
+that ceiling.
 
 ---
 
@@ -157,6 +216,9 @@ recipe book — none of Create's own are either — so look for it in JEI or EMI
 ./gradlew runServer          # dev dedicated server (needs run/eula.txt)
 ./gradlew runGameTestServer  # automated in-world tests -- the real check
 ```
+
+`runClient` loads **JEI** too, so the recipes are browsable in dev. It is a dev-run dependency only —
+not on the compile classpath, not in the jar, and not in the published metadata.
 
 JDK 21. Art and the GameTest template are generated:
 

@@ -19,11 +19,17 @@ python3 tools/generate_logo.py branding/icon-512.png --size 512   # ...and the 5
 python3 tools/generate_structures.py   # the empty GameTest template
 python3 tools/generate_recipe_advancements.py  # one per recipe, or nothing reaches the recipe book
 python3 tools/check_lang.py            # every tooltip key resolves, and nothing is orphaned
+python3 tools/check_config_docs.py     # every config option is documented in the README, both ways
 ```
 
 JDK 21 required. `gradle/gradle-daemon-jvm.properties` pins the daemon to it, so the commands work
 without setting `JAVA_HOME` even when the default `java` is newer — don't delete that file, or
 `./gradlew build` dies with "Could not create task ':test' ... Type T not present" on a newer JVM.
+
+`runClient` loads **JEI** as well, and only in the dev runs — the vanilla recipe book lists a recipe
+only once an advancement has granted it, and cannot show the Borer's at all, because mechanical
+crafting is not a vanilla recipe type. See the `devMods` configuration in `build.gradle` for why it is
+declared the way it is; two more obvious routes silently do nothing.
 
 There is no unit-test suite; correctness is covered by GameTests in
 `com.createpneumatictools.test.PneumaticToolGameTests`. Run them after any change to a tool's
@@ -80,10 +86,33 @@ config can be read against Create's without converting anything, and
   `DiggingHandler`, and that is not a style choice: the component is baked into `Item.Properties` at
   registration, which happens long before the config file is read, so a speed put there could never
   be configurable. It also makes "empty tank" mean "the handler adds nothing" rather than a
-  subtraction that has to be got exactly right. The visible cost is the Efficiency enchantment —
-  vanilla adds `MINING_EFFICIENCY` only when the tool's own contribution already exceeds 1, so it
-  never applies. None of these is enchantable at a table and "the air is what makes it fast" is the
-  premise, so leave it. Haste and Mining Fatigue still work; they are multiplicative and land after.
+  subtraction that has to be got exactly right.
+- **Efficiency is applied by `DiggingHandler`, because vanilla refuses to.** `Player.getDigSpeed`
+  adds the `MINING_EFFICIENCY` attribute only `if (f > 1.0F)`, where `f` is the tool component's own
+  speed — pinned at exactly 1 above, so vanilla's bonus is always skipped. Raising the component to
+  let vanilla in is the trap: it could never be configurable, and it would make an empty tank
+  permanently faster than bare hands, which is the promise the whole design rests on. So the bonus is
+  applied on this side of the gate, next to the rest of the speed.
+  - **Multiplicative, not vanilla's additive**, and the jackhammer is why. Vanilla adds `level² + 1`
+    to a tool's own speed, which works when that speed *is* a speed. The jackhammer's is solved
+    backwards out of a *time*, so a fixed addition shortens the break by an amount that depends on
+    hardness — Deepslate gains far more than Obsidian, which is the exact difference the tool exists
+    to erase. `anEfficientJackhammerStillIgnoresHardness` covers it, and was mutation-checked with the
+    additive model: Obsidian goes to 6.52 speed-per-hardness and Deepslate to 14.67.
+  - **0.2 per level is vanilla's, not invented** — it is the constant in `getDigSpeed`'s Haste term,
+    so one level of Efficiency is worth one level of Haste and Efficiency V doubles the speed. That is
+    less than the 4.25x a diamond pickaxe gets, deliberately: an Efficiency V jackhammer at vanilla's
+    rate would shatter Obsidian in a single tick.
+  - Efficiency does nothing where the air does nothing. The handler returns before applying it when
+    `poweredSpeed` is 1, so a jackhammer on soft stone stays slow and free with a book on it.
+  - Read off the stack's enchantments rather than the `MINING_EFFICIENCY` attribute, which would
+    otherwise be tidier: the attribute carries `level² + 1`, and a rule written in levels wants the
+    level.
+- **Haste, Mining Fatigue, the water penalty and the airborne `/5` all land *before* the event.**
+  `EventHooks.getBreakSpeed` is the last line of `Player.getDigSpeed`, so `getOriginalSpeed()` already
+  has all of them in it and the config multiplier compounds with them. A beacon is therefore worth
+  x1.4, or x1.6 at Haste II, on top of the air — including on the jackhammer, whose "five ticks" is
+  the time on a bare player rather than a floor. The config comment says so.
 - **Vanilla's spawn protection and world border only ever guard the block named in the packet.**
   Both are checked in `ServerGamePacketListenerImpl`, against the position the client sent, so they
   cover the block a player actually swung at and nothing else. Every extra block the tunneller and
@@ -178,14 +207,33 @@ config can be read against Create's without converting anything, and
   `run-gametest/config/createpneumatictools-server.toml` had been written by an earlier run. Delete
   the file — in `run/` and `run-gametest/` both — after changing a default, or the test suite is
   reading last week's numbers.
-- **The four diggers can be enchanted, but only at an anvil.** They are in
-  `#minecraft:enchantable/mining_loot`, so Fortune and Silk Touch apply and are worth having. They
-  are deliberately *not* in `#minecraft:enchantable/mining`: Efficiency's contribution is gated on
-  the tool's own mining speed already exceeding 1, and the `TOOL` component here is pinned at exactly
-  1, so offering Efficiency would sell a book that does nothing. An enchanting *table* refuses all of
-  them regardless — `Item.isEnchantable` requires a `MAX_DAMAGE` component and these have no
-  durability — which is the correct answer for a tool that runs on air, and the same answer Create's
-  own Extendo Grip gives.
+- **A `usesPerTank` above 900 does nothing, and nothing says so.** `BacktankUtil.canAbsorbDamage`
+  charges `max(maxAirWithoutEnchants() / usesPerTank, 1)`, so once the integer division reaches 1 a
+  larger rating buys no more uses — at Create's default 900 air, 900 uses is the ceiling however big
+  the number in the config. Every default here divides 900 exactly (900/1, 450/2, 300/3, 100/9, 90/10,
+  60/15, 50/18), which is deliberate: a rating that does not divide it is silently rounded down by
+  that same integer division. The config comment on every rating now says so.
+- **Create's Capacity enchantment is the one thing that goes past that ceiling**, and it works because
+  the *cost* is computed from `maxAirWithoutEnchants()` while the tank's size comes from `maxAir()`.
+  Capacity III is +900 air at Create's defaults and no change to the price, so every tool in this mod
+  gets exactly twice the uses. Nothing else on a backtank touches air: the tank is in
+  `minecraft:chest_armor` so Unbreaking and Mending will go on it, but `consumeAir` writes the
+  `BACKTANK_AIR` component directly and never calls `ItemStack.hurt`, so neither can see it. A
+  Netherite backtank holds no more air than a Copper one either — `maxAir` reads the config and the
+  enchantment, never the item.
+- **The five diggers can be enchanted, but only at an anvil.** They are in
+  `#minecraft:enchantable/mining_loot`, so Fortune and Silk Touch apply and are worth having — those
+  two are the *only* vanilla enchantments whose `supported_items` is that tag, and no vanilla tag
+  includes it, so nothing else is inherited. `onlyTheDiggersTakeLootEnchantments` asserts the whole
+  arrangement off `CPTItems.all()`, so a tool added without its tag entry fails there rather than
+  shipping unenchantable; it tests `ItemStack.supportsEnchantment`, which is the call `AnvilMenu`
+  actually makes, rather than `Enchantment.canEnchant`. They are also in
+  `#minecraft:enchantable/mining`, for Efficiency, which needed `DiggingHandler` to apply the bonus
+  by hand because vanilla's gate refuses it — see above. Neither tag is referenced by any vanilla
+  tag, so those three books are exactly what a digger accepts and nothing is inherited. An enchanting
+  *table* refuses all nine regardless — `Item.isEnchantable` requires a `MAX_DAMAGE` component and
+  these have no durability — which is the correct answer for a tool that runs on air, and the same
+  answer Create's own Extendo Grip gives.
 - **`mine()` in the tests is `ServerPlayerGameMode.destroyBlock`, not `Level.destroyBlock`.** The
   latter drops with `ItemStack.EMPTY` as the tool, so the loot table never sees the enchantments or
   the tier. Nothing noticed until a Silk Touch drill was asked for Stone and produced Cobblestone.
@@ -214,6 +262,49 @@ config can be read against Create's without converting anything, and
   `hardness * 30 / speed`, so quoting a speed makes Obsidian at 50 hardness take seventeen times as
   long as Deepslate at 3 — which is exactly the difference the tool exists to erase. Asking for ticks
   and solving for the speed is what makes "five ticks" mean five ticks on both.
+- **A flat break time already *is* an inverted hardness scale**, and mistaking the two for separate
+  options wastes a design discussion. `poweredSpeed` grows *linearly* with hardness — 18x for
+  Deepslate, 300x for Obsidian — and multiplying vanilla's `hardness * 30` by something linear in
+  hardness cancels hardness out exactly. So "harder blocks get a bigger boost" and "every hard block
+  takes the same time" are one behaviour described twice. To make harder blocks genuinely *quicker*
+  the multiplier has to grow **faster** than linearly, which is what `jackhammerHardnessBias` does:
+  `break time = breakTicks * (minHardness / hardness) ^ bias`, so the exponent has to go **up** from
+  zero, not down. An exponent below 1 applied to the *speed* pushes the other way and hands back the
+  hardness dependence the tool exists to remove.
+  - Default **0**, which is the flat tool, so the shipped identity and the tooltip are untouched and
+    the knob only ever moves toward "harder is faster".
+  - Anchored on `jackhammerMinHardness` rather than a constant of its own: the softest block the tool
+    bothers with is the one that still takes `breakTicks`. That also means the bias has to be
+    **ignored when `minHardness` is 0** — with no threshold there is no softest qualifying block, and
+    dividing by it would hand `Math.pow` an infinity and the network a speed of `Infinity`.
+  - Past about bias 1 there is nothing left to give: a block cannot break in under one tick, so
+    everything from roughly fifteen hardness up lands on that floor and Obsidian, Ancient Debris and
+    a Netherite Block all feel identical. The config range stops at 2 and the comment says why.
+  - The `bias <= 0` early return is not only for the hot path (this runs on every break-speed event on
+    both sides): it keeps the default *bit*-identical to the pre-knob tool rather than
+    identical-in-theory via `Math.pow(x, 0)`.
+  - `aBiasedJackhammerGetsQuickerOnHarderBlocks` sets the config and restores it in a `finally`, the
+    way the world-border test does — a test that only passes on a config somebody edited first is
+    worse than none. It asserts the Obsidian-to-Deepslate ratio rather than a tick count, so it
+    carries none of the constants, and it was mutation-checked by making the bias a no-op: 1.0 against
+    an expected 4.08.
+- **Adding a third-party mod to the dev runs goes through `runtimeClasspath`, and two better-looking
+  routes do nothing.** `additionalRuntimeClasspath` is MDG's own hook and is documented as
+  dependencies "that should not be considered boot classpath modules" — it drops the jar among gson
+  and netty in `build/moddev/clientLegacyClasspath.txt`, where FML never scans it, so the mod is on
+  the classpath and absent from `ModDiscoverer`'s list. `RunModel.getAdditionalRuntimeClasspathConfiguration()`
+  reads like a per-run version of the same thing, but MDG 2.0.144 never registers it on the project,
+  so adding to it from a `runs { client { } }` block is a no-op with no warning. What works is what
+  Create already does here: be on `runtimeClasspath`. The `devMods` configuration extends it rather
+  than using `runtimeOnly`, because this project publishes `from components.java` and `runtimeElements`
+  extends `runtimeOnly` — a dev-only recipe viewer would be published as something consumers need.
+  Diagnose this class of problem by reading the `Mod List:` block FML prints at startup, not by
+  grepping the log for the mod's name.
+- **The recipes and their unlock advancements are covered by `everyToolHasALoadedRecipe`**, because
+  both halves fail silently and nothing else in the suite crafts anything — the whole `data/`
+  directory could go missing and the tests would stay green. It also pins the rule that a
+  `RecipeType.CRAFTING` recipe has an advancement and anything else does not, which is the same rule
+  the generator follows.
 - **The Borer's recipe is `create:mechanical_crafting`, and that means no recipe advancement.**
   `generate_recipe_advancements.py` writes one per `minecraft:crafting_shaped` recipe and skips
   everything else, which is right and not an oversight: the vanilla recipe book only shows vanilla

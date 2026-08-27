@@ -40,6 +40,12 @@ jobs:
       - name: Translation keys resolve
         run: python3 tools/check_lang.py
 
+      # Twenty-three config options accumulated before anyone counted them, and the README named one.
+      # Nothing breaks when an option goes undocumented, so the only symptom is a server owner who
+      # cannot find a knob they were told exists.
+      - name: Config options are documented
+        run: python3 tools/check_config_docs.py
+
       # The art and the test template are generated, so a stale checked-in file is a real defect --
       # it would ship in the jar. Regenerating must be a no-op; if it is not, someone edited a
       # sprite by hand or changed a generator and forgot to re-run it.

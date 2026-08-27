@@ -95,6 +95,12 @@ jobs:
       - name: Translation keys resolve
         run: python3 tools/check_lang.py
 
+      # Twenty-three config options accumulated before anyone counted them, and the README named one.
+      # Nothing breaks when an option goes undocumented, so the only symptom is a server owner who
+      # cannot find a knob they were told exists.
+      - name: Config options are documented
+        run: python3 tools/check_config_docs.py
+
       # Same gate as the build workflow, because a release is the worst place to discover a stale
       # generated file.
       - name: Generated assets are up to date

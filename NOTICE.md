@@ -18,9 +18,13 @@ defined by that code rather than merely assisted by it:
   `SawBlockEntity` does, so a hand saw and a mounted saw agree about what a tree is.
 - **`BlockHelper.destroyBlockAs`** breaks the extra blocks the tunnelling drill and the saw take
   down.
-- **`SandPaperPolishingRecipe`** and Create's `pressing` recipe type are what the Buffer and the
-  Crimper process; `SandPaperItem.spawnParticles` draws the result.
-- **`HandCrankBlockEntity.turn`** is what the Pneumatic Wrench drives.
+- **`GeneratingKineticBlockEntity`**, `DirectionalKineticBlock` and `KineticBlockEntity` are what the
+  Pneumatic Wrench's source block *is*; it extends them rather than calling them.
+- **`KineticNetwork`** defines what the wrench is worth. Create bills a generator's capacity as
+  `per-RPM × speed`, and `PneumaticSourceBlockEntity.calculateAddedStressCapacity` exists to answer
+  that formula; `RotationPropagator`'s speed arithmetic is what the source matches itself to.
+- **`BlockStressValues`** is how the source's capacity and quoted speed reach Create at all.
+- **`CustomRenderedItemModelRenderer`** and `PartialItemModelRenderer` draw every tool's moving parts.
 - **`ItemDescription`** and `TooltipModifier` give the items Create-style tooltips.
 
 Whether that reaches "substantial portions" is arguable, and the argument is not worth having when

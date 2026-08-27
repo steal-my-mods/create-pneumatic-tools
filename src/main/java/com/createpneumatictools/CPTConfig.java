@@ -26,6 +26,7 @@ public class CPTConfig {
 	public final ModConfigSpec.IntValue jackhammerUsesPerTank;
 	public final ModConfigSpec.DoubleValue jackhammerMinHardness;
 	public final ModConfigSpec.IntValue jackhammerBreakTicks;
+	public final ModConfigSpec.DoubleValue jackhammerHardnessBias;
 
 	public final ModConfigSpec.IntValue tunnelDrillUsesPerTank;
 	public final ModConfigSpec.DoubleValue tunnelDrillSpeed;
@@ -50,6 +51,16 @@ public class CPTConfig {
 	public final ModConfigSpec.DoubleValue wrenchStressUnits;
 	public final ModConfigSpec.DoubleValue wrenchRange;
 
+	/**
+	 * Create's own default air in a Copper Backtank, quoted in the config comments.
+	 *
+	 * <p>Not read from Create: {@code AllConfigs.server()} is not loaded when this spec is built, and a
+	 * comment is a string in a file rather than a live figure anyway. It is only ever used to tell a
+	 * reader where the ceiling on a rating is; the arithmetic that matters happens in
+	 * {@code BacktankUtil}, against whatever Create is actually configured for.
+	 */
+	private static final int AIR_IN_A_TANK = 900;
+
 	private CPTConfig(ModConfigSpec.Builder builder) {
 		builder.comment("Hand Drill").push("hand_drill");
 		handDrillUsesPerTank = usesPerTank(builder, "handDrillUsesPerTank", 900,
@@ -70,8 +81,24 @@ public class CPTConfig {
 			.defineInRange("jackhammerMinHardness", 3.0, 0.0, 10000.0);
 		jackhammerBreakTicks = builder
 			.comment("Ticks to shatter a qualifying block, whatever its hardness. This is the whole",
-				"point of the tool: Obsidian and Deepslate take the same moment. 20 ticks is a second.")
+				"point of the tool: Obsidian and Deepslate take the same moment. 20 ticks is a second.",
+				"Haste and Efficiency both shorten it -- they multiply the speed this figure was solved",
+				"backwards out of, so a beacon or an Efficiency book makes the moment shorter without",
+				"making it depend on hardness again. Mining Fatigue lengthens it the same way. So this",
+				"is the time on a bare player, not a ceiling.")
 			.defineInRange("jackhammerBreakTicks", 5, 1, 200);
+		jackhammerHardnessBias = builder
+			.comment("How much *faster* the jackhammer gets on harder blocks, as an exponent:",
+				"    break time = jackhammerBreakTicks * (jackhammerMinHardness / hardness) ^ bias",
+				"0 is a flat break time -- every qualifying block takes jackhammerBreakTicks, which is",
+				"what the tool has always done and what its tooltip describes. Turn it up and the",
+				"softest qualifying block still takes that long while harder ones take less: at 0.5,",
+				"Obsidian breaks about four times quicker than Deepslate. Past about 1 there is nothing",
+				"left to give -- a block cannot break in less than one tick, so everything from roughly",
+				"fifteen hardness up lands on that floor and Obsidian, Ancient Debris and a Netherite",
+				"Block all feel the same. Ignored entirely if jackhammerMinHardness is 0, since with no",
+				"threshold there is no softest qualifying block to anchor the curve to.")
+			.defineInRange("jackhammerHardnessBias", 0.0, 0.0, 2.0);
 		builder.pop();
 
 		builder.comment("3x3 Tunnelling Drill").push("tunnel_drill");
@@ -169,9 +196,15 @@ public class CPTConfig {
 	 */
 	private static ModConfigSpec.IntValue usesPerTank(ModConfigSpec.Builder builder, String name,
 		int fallback, String... comment) {
-		String[] lines = new String[comment.length + 1];
+		String[] lines = new String[comment.length + 2];
 		System.arraycopy(comment, 0, lines, 0, comment.length);
 		lines[comment.length] = "Set to 0 to make the tool free and let it work with no backtank at all.";
+		// The ceiling is Create's, not ours, and it is invisible without being told: a rating becomes a
+		// cost as max(airInBacktank / usesPerTank, 1) in BacktankUtil.canAbsorbDamage, so once the
+		// division reaches 1 a larger rating buys nothing. At Create's default 900 air that is 900 uses,
+		// whatever number is written here.
+		lines[comment.length + 1] = "Above " + AIR_IN_A_TANK + " this stops doing anything: a use cannot"
+			+ " cost less than one air unit, so that is the most uses a tank can give.";
 		return builder.comment(lines)
 			.defineInRange(name, fallback, 0, 1000000);
 	}
@@ -210,6 +243,10 @@ public class CPTConfig {
 
 	public static int jackhammerBreakTicks() {
 		return read(INSTANCE.jackhammerBreakTicks);
+	}
+
+	public static float jackhammerHardnessBias() {
+		return read(INSTANCE.jackhammerHardnessBias).floatValue();
 	}
 
 	public static int tunnelDrillUsesPerTank() {

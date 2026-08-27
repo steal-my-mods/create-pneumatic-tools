@@ -25,7 +25,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
  * outside — and on macOS the second needs Accessibility permission the build has no business asking
  * for. The game can photograph itself; {@link Screenshot#grab} is the same call F2 makes.
  *
- * <p>Worth keeping rather than deleting after one use: the README's images are of eight tools that a
+ * <p>Worth keeping rather than deleting after one use: the README's images are of nine tools that a
  * generator draws, so they go stale exactly when the generator changes, and a one-command way to
  * retake them is the difference between updating them and not.
  *

@@ -41,7 +41,24 @@ public class JackhammerItem extends PneumaticDiggerItem {
 	public float poweredSpeed(BlockState state, Level level, BlockPos pos) {
 		if (!shatters(state, level, pos))
 			return 1.0F;
-		return hardness(state, level, pos) * TICKS_PER_HARDNESS / CPTConfig.jackhammerBreakTicks();
+		float hardness = hardness(state, level, pos);
+		// Solved backwards out of a time rather than quoted as a speed, which is the whole reason the
+		// tool erases the difference between Deepslate and Obsidian: vanilla's break time is
+		// hardness * 30 / speed, so asking for ticks and dividing is what makes "five ticks" mean five
+		// ticks on both.
+		float flat = hardness * TICKS_PER_HARDNESS / CPTConfig.jackhammerBreakTicks();
+
+		// And optionally tilted so that harder is *quicker* rather than merely equal. The law is
+		//     break time = breakTicks * (minHardness / hardness) ^ bias
+		// which rearranges to the factor below; at bias 0 it is exactly 1 and this is the flat tool.
+		// The early return is not just for speed, though this does run on every break-speed event on
+		// both sides: it also keeps the default bit-identical to what the tool did before the knob
+		// existed, rather than bit-identical-in-theory via Math.pow(x, 0).
+		float bias = CPTConfig.jackhammerHardnessBias();
+		float anchor = CPTConfig.jackhammerMinHardness();
+		if (bias <= 0.0F || anchor <= 0.0F)
+			return flat;
+		return flat * (float) Math.pow(hardness / anchor, bias);
 	}
 
 	@Override

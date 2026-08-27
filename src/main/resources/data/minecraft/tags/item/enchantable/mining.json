@@ -1,0 +1,9 @@
+{
+  "values": [
+    "createpneumatictools:hand_drill",
+    "createpneumatictools:pneumatic_jackhammer",
+    "createpneumatictools:tunnel_drill",
+    "createpneumatictools:pneumatic_borer",
+    "createpneumatictools:pneumatic_saw"
+  ]
+}

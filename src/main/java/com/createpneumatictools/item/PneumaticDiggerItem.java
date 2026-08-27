@@ -14,7 +14,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Base for the four tools that break blocks.
+ * Base for the five tools that break blocks.
  *
  * <p>The split between the item and {@link com.createpneumatictools.tool.DiggingHandler} is the thing
  * to understand here. The item's {@code TOOL} data component carries only <em>which blocks this tool
@@ -24,11 +24,12 @@ import net.minecraft.world.level.block.state.BlockState;
  * a speed put there could never be configurable. Keeping the component at 1 also makes "empty tank"
  * mean "the handler adds nothing" rather than a subtraction that has to be got exactly right.
  *
- * <p>The visible cost of that arrangement is the Efficiency enchantment: vanilla adds
- * {@code MINING_EFFICIENCY} only when the tool's own contribution already exceeds 1, so it never
- * applies to these. None of them is enchantable at a table, and "the air is what makes it fast" is the
- * mod's premise, so this is deliberate. Haste and Mining Fatigue still work — they are multiplicative
- * and land after the event.
+ * <p>Pinning the component at 1 does shut vanilla's Efficiency out — it adds
+ * {@code MINING_EFFICIENCY} only once the tool's own contribution exceeds 1 — so
+ * {@code DiggingHandler.efficiencyFactor} applies that bonus itself, on the near side of the gate,
+ * where the rest of the speed already lives. The component stays at 1,
+ * an empty tank still means bare hands, and the book still does something. Haste and Mining Fatigue
+ * need no help: they are multiplicative and land before the event.
  *
  * <p>{@code damagePerBlock} is 0 and no durability is declared: these wear out by running dry, not by
  * being used.
